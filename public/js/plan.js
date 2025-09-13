@@ -699,7 +699,7 @@ async function addMapMarkers() {
 
         if ((!attraction.latitude || !attraction.longitude) && attraction.address) {
           await new Promise(resolve => {
-            geocoder.geocode({ address: `${attraction.address}, ${day.city}, China` }, (results, status) => {
+            geocoder.geocode({ address: `${attraction.address}, ${day.city}` }, (results, status) => {
               if (status === 'OK' && results[0]) {
                 attraction.latitude = results[0].geometry.location.lat();
                 attraction.longitude = results[0].geometry.location.lng();
@@ -882,7 +882,7 @@ function clearMapMarkers() {
 // 显示路线
 function showRoute() {
   if (mapProvider !== 'google' || !directionsService || days.length < 2) {
-    showNotification('需要至少2个城市才能显示路线，且当前仅支持Google地图', 'info');
+    showNotification('需要至少2个城市才能显示路线', 'info');
     return;
   }
   
@@ -893,15 +893,15 @@ function showRoute() {
   if (sortedDays.length > 2) {
     for (let i = 1; i < sortedDays.length - 1; i++) {
       waypoints.push({
-        location: sortedDays[i].city + ', China',
+        location: sortedDays[i].city,
         stopover: true
       });
     }
   }
   
   const request = {
-    origin: sortedDays[0].city + ', China',
-    destination: sortedDays[sortedDays.length - 1].city + ', China',
+    origin: sortedDays[0].city,
+    destination: sortedDays[sortedDays.length - 1].city,
     waypoints: waypoints,
     travelMode: google.maps.TravelMode.DRIVING,
     optimizeWaypoints: false
