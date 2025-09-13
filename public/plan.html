@@ -6,7 +6,8 @@
   <title>计划详情 - Travenion</title>
   <base href="/travenion/">
   <link rel="icon" href="logo.svg">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.loli.net/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
   <link href="css/style.css" rel="stylesheet">
 </head>
 <body>
@@ -130,6 +131,10 @@
             <input type="number" class="form-control" name="dayIndex" min="1" placeholder="例如：1" required>
           </div>
           <div class="form-group">
+            <label class="form-label">具体日期 *</label>
+            <input type="date" class="form-control" name="date" required>
+          </div>
+          <div class="form-group">
             <label class="form-label">城市 *</label>
             <input type="text" class="form-control" name="city" placeholder="例如：东京" required>
           </div>
@@ -139,7 +144,16 @@
           </div>
           <div class="form-group">
             <label class="form-label">景点安排</label>
-            <textarea class="form-control" name="attractions" rows="3" placeholder="例如：上午参观浅草寺，下午游览东京塔，晚上在银座购物"></textarea>
+            <div id="attractionsList" style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f8fafc;">
+              <div id="attractionsContainer">
+                <!-- 景点列表将在这里动态生成 -->
+              </div>
+              <button type="button" class="btn btn-outline-primary" onclick="addAttractionItem()" style="width: 100%; margin-top: 10px;">
+                <i class="fas fa-plus"></i> 添加景点
+              </button>
+            </div>
+            <!-- 保留原有的文本框作为备用 -->
+            <textarea class="form-control" name="attractions" rows="3" placeholder="例如：上午参观浅草寺，下午游览东京塔，晚上在银座购物" style="display: none;"></textarea>
           </div>
         </form>
       </div>
@@ -318,9 +332,46 @@
     </div>
   </div>
 
+  <!-- 景点编辑模态框 -->
+  <div id="attractionModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 style="margin: 0;" id="attractionModalTitle">添加景点</h2>
+        <button class="close" onclick="closeAttractionModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="attractionForm">
+          <div class="form-group">
+            <label class="form-label">景点名称 *</label>
+            <input type="text" class="form-control" id="attractionName" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">景点地址</label>
+            <input type="text" class="form-control" id="attractionAddress" placeholder="用于地图定位">
+          </div>
+          <div class="form-group">
+            <label class="form-label">景点描述</label>
+            <textarea class="form-control" id="attractionDescription" rows="3"></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeAttractionModal()">取消</button>
+        <button type="button" class="btn btn-primary" onclick="saveAttraction()">
+          <span id="attractionSaveText">保存</span>
+          <span class="loading" style="display: none;"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- 通知容器 -->
   <div id="notification-container" style="position: fixed; top: 20px; right: 20px; z-index: 1000;"></div>
 
-  <script src="js/plan.js"></script>
+  <!-- 地图API脚本 -->
+  <!-- 地图配置文件 -->
+    <script src="js/config.js"></script>
+    
+    <script src="js/plan.js"></script>
 </body>
 </html>

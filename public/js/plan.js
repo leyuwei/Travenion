@@ -3,6 +3,85 @@ let map, mapProvider = 'google';
 let currentPlan = null;
 let days = [];
 let files = [];
+let currentDayAttractions = []; // 当前编辑的行程日的景点列表
+
+// 从配置文件获取默认地图提供商
+if (typeof window.MAP_CONFIG !== 'undefined' && window.MAP_CONFIG.DEFAULT_MAP_PROVIDER) {
+  mapProvider = window.MAP_CONFIG.DEFAULT_MAP_PROVIDER;
+}
+
+// 地图API加载状态
+let googleMapsLoaded = false;
+let baiduMapsLoaded = false;
+
+// 动态加载Google Maps API
+function loadGoogleMapsAPI() {
+  return new Promise((resolve, reject) => {
+    if (googleMapsLoaded || (typeof google !== 'undefined' && google.maps)) {
+      googleMapsLoaded = true;
+      resolve();
+      return;
+    }
+    
+    if (!window.MAP_CONFIG || window.MAP_CONFIG.GOOGLE_MAPS_API_KEY === 'YOUR_GOOGLE_MAPS_API_KEY') {
+      reject(new Error('Google Maps API密钥未配置'));
+      return;
+    }
+    
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${window.MAP_CONFIG.GOOGLE_MAPS_API_KEY}&libraries=places`;
+    script.async = true;
+    script.defer = true;
+    
+    script.onload = () => {
+      googleMapsLoaded = true;
+      resolve();
+    };
+    
+    script.onerror = () => {
+      reject(new Error('Google Maps API加载失败'));
+    };
+    
+    document.head.appendChild(script);
+  });
+}
+
+// 动态加载百度地图API
+function loadBaiduMapsAPI() {
+  return new Promise((resolve, reject) => {
+    if (baiduMapsLoaded || (typeof BMap !== 'undefined')) {
+      baiduMapsLoaded = true;
+      resolve();
+      return;
+    }
+    
+    if (!window.MAP_CONFIG || window.MAP_CONFIG.BAIDU_MAP_API_KEY === 'YOUR_BAIDU_MAP_API_KEY') {
+      reject(new Error('百度地图API密钥未配置'));
+      return;
+    }
+    
+    // 设置全局回调函数
+    window.baiduMapInit = () => {
+      baiduMapsLoaded = true;
+      resolve();
+      // 清理回调函数
+      delete window.baiduMapInit;
+    };
+    
+    // 创建script标签，使用callback参数避免document.write问题
+    const script = document.createElement('script');
+    script.src = `https://api.map.baidu.com/api?v=3.0&ak=${window.MAP_CONFIG.BAIDU_MAP_API_KEY}&callback=baiduMapInit`;
+    script.type = 'text/javascript';
+    
+    script.onerror = () => {
+      reject(new Error('百度地图API加载失败'));
+      // 清理回调函数
+      delete window.baiduMapInit;
+    };
+    
+    document.head.appendChild(script);
+  });
+}
 
 // 通知系统
 function showNotification(message, type = 'info') {
@@ -42,7 +121,9 @@ function setLoadingState(element, isLoading) {
 
 // 格式化日期
 function formatDate(dateString) {
+  if (!dateString) return '未知日期';
   const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '未知日期';
   return date.toLocaleDateString('zh-CN', {
     year: 'numeric',
     month: 'long',
@@ -311,6 +392,27 @@ async function loadDays() {
     }
     
     days = await response.json();
+    
+    // 为每一天加载景点数据
+    for (let day of days) {
+      try {
+        const attractionsResponse = await fetch(`/travenion/api/attractions/day/${day.id}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        
+        if (attractionsResponse.ok) {
+          day.attractionsList = await attractionsResponse.json();
+        } else {
+          day.attractionsList = [];
+        }
+      } catch (error) {
+        console.error(`加载第${day.dayIndex}天景点失败:`, error);
+        day.attractionsList = [];
+      }
+    }
+    
     renderDays();
     updateStatistics();
     
@@ -333,19 +435,41 @@ function renderDays() {
   
   emptyState.style.display = 'none';
   
-  // 按天数排序
-  const sortedDays = [...days].sort((a, b) => a.day_index - b.day_index);
+  // 获取今天的日期
+  const today = new Date().toISOString().split('T')[0];
   
-  container.innerHTML = sortedDays.map(day => `
-    <div class="day-card" style="margin-bottom: 15px; padding: 20px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+  // 按天数排序
+  const sortedDays = [...days].sort((a, b) => a.dayIndex - b.dayIndex);
+  
+  container.innerHTML = sortedDays.map(day => {
+    const isToday = day.date === today;
+    const isPast = day.date && day.date < today;
+    const isFuture = day.date && day.date > today;
+    
+    // 根据日期状态设置样式
+    let cardStyle = 'margin-bottom: 15px; padding: 20px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);';
+    let badgeStyle = 'background: #3b82f6; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600;';
+    let todayBadge = '';
+    
+    if (isToday) {
+      cardStyle = 'margin-bottom: 15px; padding: 20px; background: linear-gradient(135deg, #fef3c7 0%, #fbbf24 100%); border-radius: 12px; box-shadow: 0 4px 12px rgba(251, 191, 36, 0.3); border: 2px solid #f59e0b;';
+      badgeStyle = 'background: #f59e0b; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600;';
+      todayBadge = '<span style="background: #ef4444; color: white; font-size: 10px; padding: 2px 6px; border-radius: 10px; margin-left: 8px; animation: pulse 2s infinite;">今天</span>';
+    } else if (isPast) {
+      cardStyle = 'margin-bottom: 15px; padding: 20px; background: #f9fafb; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); opacity: 0.7;';
+      badgeStyle = 'background: #9ca3af; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600;';
+    }
+    
+    return `
+    <div class="day-card" style="${cardStyle}">
       <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
         <div style="display: flex; align-items: center; gap: 10px;">
-          <div style="background: #3b82f6; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600;">
-            ${day.day_index}
+          <div style="${badgeStyle}">
+            ${day.dayIndex}
           </div>
           <div>
-            <h3 style="margin: 0; color: #1f2937;">${day.city}</h3>
-            <p style="margin: 0; color: #6b7280; font-size: 14px;">第${day.day_index}天</p>
+            <h3 style="margin: 0; color: #1f2937;">${day.city} ${todayBadge}</h3>
+            <p style="margin: 0; color: #6b7280; font-size: 14px;">第${day.dayIndex}天 ${day.date ? formatDate(day.date) : ''}</p>
           </div>
         </div>
         <div style="display: flex; gap: 10px;">
@@ -361,14 +485,30 @@ function renderDays() {
         </div>
       ` : ''}
       
-      ${day.attractions ? `
-        <div>
-          <span style="color: #6b7280; font-size: 14px;">🎯 景点安排:</span>
-          <div style="margin-top: 5px; padding: 10px; background: #f8fafc; border-radius: 8px; white-space: pre-wrap;">${day.attractions}</div>
-        </div>
-      ` : ''}
+      <div>
+        <span style="color: #6b7280; font-size: 14px;">🎯 景点安排:</span>
+        ${day.attractionsList && day.attractionsList.length > 0 ? `
+          <div style="margin-top: 8px;">
+            ${day.attractionsList.map((attraction, index) => `
+              <div style="display: flex; align-items: center; padding: 8px; margin-bottom: 6px; background: #f8fafc; border-radius: 6px; border-left: 3px solid #3b82f6;">
+                <span style="background: #3b82f6; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 12px; margin-right: 10px; flex-shrink: 0;">${index + 1}</span>
+                <div style="flex: 1; min-width: 0;">
+                  <div style="font-weight: 500; color: #1f2937; margin-bottom: 2px;">${attraction.name}</div>
+                  ${attraction.description ? `<div style="color: #6b7280; font-size: 13px; margin-bottom: 2px;">${attraction.description}</div>` : ''}
+                  ${attraction.address ? `<div style="color: #9ca3af; font-size: 12px;"><i class="fas fa-map-marker-alt"></i> ${attraction.address}</div>` : ''}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        ` : `
+          <div style="margin-top: 5px; padding: 15px; background: #f8fafc; border-radius: 8px; text-align: center; color: #6b7280; font-style: italic;">
+            暂无景点安排
+          </div>
+        `}
+      </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 // 加载文件列表
@@ -419,7 +559,7 @@ function renderFiles() {
         ${canPreviewFile(file.filename) ? `
           <button class="btn btn-outline" onclick="previewFile(${file.id})" style="flex: 1; min-width: 60px; font-size: 12px;" title="预览">预览</button>
         ` : ''}
-        <a href="/travenion/api/plans/${planId}/files/${file.id}" target="_blank" class="btn btn-outline" style="flex: 1; min-width: 60px; text-align: center; text-decoration: none; font-size: 12px;" title="下载">下载</a>
+        <button class="btn btn-outline" onclick="downloadFile(${file.id})" style="flex: 1; min-width: 60px; font-size: 12px;" title="下载">下载</button>
         <button class="btn btn-secondary" onclick="editFileDescription(${file.id})" style="flex: 1; min-width: 60px; font-size: 12px;" title="编辑描述">描述</button>
         <button class="btn btn-danger" onclick="deleteFile(${file.id})" style="flex: 1; min-width: 60px; font-size: 12px;" title="删除">删除</button>
       </div>
@@ -441,12 +581,17 @@ function updateStatistics() {
 }
 
 // 加载地图
-function loadMap() {
+async function loadMap() {
   const mapElement = document.getElementById('map');
   
-  if (mapProvider === 'google') {
-    // Google Maps
-    if (typeof google !== 'undefined' && google.maps) {
+  // 显示加载状态
+  mapElement.innerHTML = '<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #6b7280; text-align: center; padding: 20px;"><div style="font-size: 1.2em; margin-bottom: 10px;">🗺️ 正在加载地图...</div><div style="font-size: 0.9em;">请稍候</div></div>';
+  
+  try {
+    if (mapProvider === 'google') {
+      // 动态加载Google Maps API
+      await loadGoogleMapsAPI();
+      
       map = new google.maps.Map(mapElement, {
         zoom: 10,
         center: { lat: 35.6762, lng: 139.6503 },
@@ -461,12 +606,11 @@ function loadMap() {
       
       // 添加地点标记
       addMapMarkers();
+      
     } else {
-      mapElement.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #6b7280;">Google Maps 加载中...</div>';
-    }
-  } else {
-    // 百度地图
-    if (typeof BMap !== 'undefined') {
+      // 动态加载百度地图API
+      await loadBaiduMapsAPI();
+      
       map = new BMap.Map(mapElement);
       map.centerAndZoom(new BMap.Point(116.404, 39.915), 11);
       map.addControl(new BMap.MapTypeControl());
@@ -476,19 +620,45 @@ function loadMap() {
       
       // 添加地点标记
       addMapMarkers();
-    } else {
-      mapElement.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #6b7280;">百度地图 加载中...</div>';
     }
+    
+  } catch (error) {
+    console.error('地图加载失败:', error);
+    
+    let errorMessage = '';
+    if (error.message.includes('密钥未配置')) {
+      errorMessage = `
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #f59e0b; text-align: center; padding: 20px;">
+          <div style="font-size: 1.2em; margin-bottom: 10px;">🔑 ${mapProvider === 'google' ? 'Google Maps' : '百度地图'} API 未配置</div>
+          <div style="font-size: 0.9em; margin-bottom: 15px;">请在 js/config.js 文件中配置有效的API密钥</div>
+          <div style="font-size: 0.8em; color: #9ca3af; background: #f9fafb; padding: 10px; border-radius: 6px; max-width: 300px;">
+            配置文件位置：public/js/config.js<br>
+            需要配置：${mapProvider === 'google' ? 'GOOGLE_MAPS_API_KEY' : 'BAIDU_MAP_API_KEY'}
+          </div>
+        </div>
+      `;
+    } else {
+      errorMessage = `
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #ef4444; text-align: center; padding: 20px;">
+          <div style="font-size: 1.2em; margin-bottom: 10px;">⚠️ ${mapProvider === 'google' ? 'Google Maps' : '百度地图'} 加载失败</div>
+          <div style="font-size: 0.9em; margin-bottom: 10px;">请检查API密钥配置或网络连接</div>
+          <div style="font-size: 0.8em; color: #9ca3af;">${error.message}</div>
+        </div>
+      `;
+    }
+    
+    mapElement.innerHTML = errorMessage;
   }
 }
 
 // 地图标记和路线
 let markers = [];
+let polylines = []; // 存储百度地图的连线
 let directionsService = null;
 let directionsRenderer = null;
 
 // 添加地图标记
-function addMapMarkers() {
+async function addMapMarkers() {
   if (!map || days.length === 0) return;
   
   // 清除现有标记
@@ -512,6 +682,24 @@ function addMapMarkers() {
     // 按天数排序
     const sortedDays = [...days].sort((a, b) => a.day_index - b.day_index);
     
+    // 获取所有天的景点数据
+    const allAttractions = [];
+    for (const day of sortedDays) {
+      try {
+        const response = await fetch(`/travenion/api/attractions/day/${day.id}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        if (response.ok) {
+          const attractions = await response.json();
+          allAttractions.push(...attractions.map(attr => ({ ...attr, dayIndex: day.day_index, dayCity: day.city })));
+        }
+      } catch (error) {
+        console.error('获取景点数据失败:', error);
+      }
+    }
+    
     // 为每个城市添加地理编码和标记
     const geocoder = new google.maps.Geocoder();
     const geocodePromises = sortedDays.map((day, index) => {
@@ -519,12 +707,13 @@ function addMapMarkers() {
         geocoder.geocode({ address: day.city + ', China' }, (results, status) => {
           if (status === 'OK' && results[0]) {
             const position = results[0].geometry.location;
+            const dayIndex = day.day_index || (index + 1);
             
             // 创建自定义标记
             const marker = new google.maps.Marker({
               position: position,
               map: map,
-              title: `第${day.day_index}天 - ${day.city}`,
+              title: `第${dayIndex}天 - ${day.city}`,
               icon: {
                 path: google.maps.SymbolPath.CIRCLE,
                 scale: 20,
@@ -534,7 +723,7 @@ function addMapMarkers() {
                 strokeWeight: 3
               },
               label: {
-                text: day.day_index.toString(),
+                text: dayIndex.toString(),
                 color: '#ffffff',
                 fontWeight: 'bold',
                 fontSize: '14px'
@@ -545,7 +734,7 @@ function addMapMarkers() {
             const infoWindow = new google.maps.InfoWindow({
               content: `
                 <div style="padding: 10px; max-width: 300px;">
-                  <h4 style="margin: 0 0 10px 0; color: #1f2937;">第${day.day_index}天 - ${day.city}</h4>
+                  <h4 style="margin: 0 0 10px 0; color: #1f2937;">第${dayIndex}天 - ${day.city}</h4>
                   ${day.transportation ? `
                     <div style="margin-bottom: 8px;">
                       <span style="color: #6b7280; font-size: 14px;">🚗 交通:</span>
@@ -573,6 +762,125 @@ function addMapMarkers() {
             });
             
             markers.push({ marker, infoWindow, position, day });
+            
+            // 为该天的景点添加标记
+            const dayAttractions = allAttractions.filter(attr => attr.dayIndex === dayIndex);
+            if (dayAttractions.length > 0) {
+              // 按visitOrder排序
+              dayAttractions.sort((a, b) => (a.visitOrder || 0) - (b.visitOrder || 0));
+              
+              // 为景点进行地理编码（同步处理）
+              const geocodeAttractions = (attractions) => {
+                let processedCount = 0;
+                const totalCount = attractions.filter(attr => attr.address && (!attr.latitude || !attr.longitude)).length;
+                
+                if (totalCount === 0) {
+                  createAttractionMarkers();
+                  return;
+                }
+                
+                attractions.forEach((attraction) => {
+                  if (attraction.address && (!attraction.latitude || !attraction.longitude)) {
+                    geocoder.geocode({ address: attraction.address + ', ' + day.city + ', China' }, (results, status) => {
+                      if (status === 'OK' && results[0]) {
+                        attraction.latitude = results[0].geometry.location.lat();
+                        attraction.longitude = results[0].geometry.location.lng();
+                      } else {
+                        console.warn(`景点 ${attraction.name} 地理编码失败`);
+                      }
+                      
+                      processedCount++;
+                      if (processedCount === totalCount) {
+                        createAttractionMarkers();
+                      }
+                    });
+                  }
+                });
+              };
+              
+              const createAttractionMarkers = () => {
+              
+              // 创建景点标记
+              for (let attractionIndex = 0; attractionIndex < dayAttractions.length; attractionIndex++) {
+                const attraction = dayAttractions[attractionIndex];
+                
+                if (attraction.latitude && attraction.longitude) {
+                  const attractionPosition = new google.maps.LatLng(attraction.latitude, attraction.longitude);
+                  const attractionMarker = new google.maps.Marker({
+                    position: attractionPosition,
+                    map: map,
+                    title: attraction.name,
+                    icon: {
+                      path: google.maps.SymbolPath.CIRCLE,
+                      scale: 12,
+                      fillColor: '#f59e0b',
+                      fillOpacity: 1,
+                      strokeColor: '#ffffff',
+                      strokeWeight: 2
+                    },
+                    label: {
+                      text: (attractionIndex + 1).toString(),
+                      color: '#ffffff',
+                      fontWeight: 'bold',
+                      fontSize: '12px'
+                    }
+                  });
+                  
+                  const attractionInfoWindow = new google.maps.InfoWindow({
+                    content: `
+                      <div style="padding: 10px; max-width: 250px;">
+                        <h5 style="margin: 0 0 8px 0; color: #1f2937;">${attraction.name}</h5>
+                        ${attraction.address ? `
+                          <div style="margin-bottom: 6px;">
+                            <span style="color: #6b7280; font-size: 13px;">📍 地址:</span>
+                            <span style="margin-left: 5px; font-size: 13px;">${attraction.address}</span>
+                          </div>
+                        ` : ''}
+                        ${attraction.description ? `
+                          <div>
+                            <span style="color: #6b7280; font-size: 13px;">📝 描述:</span>
+                            <div style="margin-top: 4px; font-size: 13px; color: #374151;">${attraction.description}</div>
+                          </div>
+                        ` : ''}
+                      </div>
+                    `
+                  });
+                  
+                  attractionMarker.addListener('click', () => {
+                    // 关闭其他信息窗口
+                    markers.forEach(m => {
+                      if (m.infoWindow) {
+                        m.infoWindow.close();
+                      }
+                    });
+                    attractionInfoWindow.open(map, attractionMarker);
+                  });
+                  
+                  markers.push({ marker: attractionMarker, infoWindow: attractionInfoWindow, position: attractionPosition, attraction });
+                }
+              }
+              
+                // 为景点添加连线
+                if (dayAttractions.length > 1) {
+                  const path = dayAttractions.filter(attr => attr.latitude && attr.longitude)
+                    .map(attr => new google.maps.LatLng(attr.latitude, attr.longitude));
+                  if (path.length > 1) {
+                    const polyline = new google.maps.Polyline({
+                      path: path,
+                      geodesic: true,
+                      strokeColor: '#3b82f6',
+                      strokeOpacity: 1.0,
+                      strokeWeight: 2
+                    });
+                    polyline.setMap(map);
+                  }
+                }
+              };
+              
+              // 开始地理编码处理
+              geocodeAttractions(dayAttractions);
+            }
+            
             resolve({ position, day, index });
           } else {
             // 如果地理编码失败，使用默认位置
@@ -642,7 +950,8 @@ function addMapMarkers() {
       geocoder.getPoint(day.city, (point) => {
         if (point) {
           const marker = new BMap.Marker(point);
-          const label = new BMap.Label(day.day_index.toString(), {
+          const dayIndex = day.day_index || (index + 1);
+          const label = new BMap.Label(dayIndex.toString(), {
             offset: new BMap.Size(0, -30)
           });
           label.setStyle({
@@ -660,7 +969,7 @@ function addMapMarkers() {
           
           const infoWindow = new BMap.InfoWindow(`
             <div style="padding: 10px;">
-              <h4 style="margin: 0 0 10px 0;">第${day.day_index}天 - ${day.city}</h4>
+              <h4 style="margin: 0 0 10px 0;">第${dayIndex}天 - ${day.city}</h4>
               ${day.transportation ? `<p><strong>交通:</strong> ${day.transportation}</p>` : ''}
               ${day.attractions ? `<p><strong>景点:</strong> ${day.attractions}</p>` : ''}
             </div>
@@ -671,6 +980,109 @@ function addMapMarkers() {
           });
           
           markers.push({ marker, point, day });
+          
+          // 为该天的景点添加标记
+          if (day.attractionsList && day.attractionsList.length > 0) {
+            // 创建景点地理编码函数
+            const geocodeAttractions = () => {
+              let processedCount = 0;
+              const totalAttractions = day.attractionsList.length;
+              const attractionMarkers = [];
+              
+              day.attractionsList.forEach((attraction, attractionIndex) => {
+                if (attraction.latitude && attraction.longitude) {
+                  // 如果已有坐标，直接创建标记
+                  createAttractionMarker(attraction, attractionIndex, attractionMarkers);
+                  processedCount++;
+                  if (processedCount === totalAttractions) {
+                    createAttractionConnections(attractionMarkers);
+                  }
+                } else if (attraction.address || attraction.name) {
+                  // 对景点进行地理编码
+                  const searchQuery = attraction.address || `${attraction.name} ${day.city}`;
+                  geocoder.getPoint(searchQuery, (attractionPoint) => {
+                    if (attractionPoint) {
+                      // 更新景点坐标
+                      attraction.latitude = attractionPoint.lat;
+                      attraction.longitude = attractionPoint.lng;
+                      createAttractionMarker(attraction, attractionIndex, attractionMarkers);
+                    } else {
+                      // 地理编码失败，使用城市坐标附近的随机位置
+                      const offsetLat = (Math.random() - 0.5) * 0.01;
+                      const offsetLng = (Math.random() - 0.5) * 0.01;
+                      const fallbackPoint = new BMap.Point(point.lng + offsetLng, point.lat + offsetLat);
+                      attraction.latitude = fallbackPoint.lat;
+                      attraction.longitude = fallbackPoint.lng;
+                      createAttractionMarker(attraction, attractionIndex, attractionMarkers);
+                    }
+                    processedCount++;
+                    if (processedCount === totalAttractions) {
+                      createAttractionConnections(attractionMarkers);
+                    }
+                  }, day.city); // 指定城市范围
+                } else {
+                  processedCount++;
+                  if (processedCount === totalAttractions) {
+                    createAttractionConnections(attractionMarkers);
+                  }
+                }
+              });
+            };
+            
+            // 创建景点标记的函数
+            const createAttractionMarker = (attraction, attractionIndex, attractionMarkers) => {
+              const attractionPoint = new BMap.Point(attraction.longitude, attraction.latitude);
+              const attractionMarker = new BMap.Marker(attractionPoint);
+              const attractionLabel = new BMap.Label((attractionIndex + 1).toString(), {
+                offset: new BMap.Size(0, -25)
+              });
+              attractionLabel.setStyle({
+                color: '#ffffff',
+                backgroundColor: '#f59e0b',
+                border: '2px solid #ffffff',
+                borderRadius: '50%',
+                padding: '3px 6px',
+                fontWeight: 'bold',
+                textAlign: 'center',
+                fontSize: '12px'
+              });
+              
+              attractionMarker.setLabel(attractionLabel);
+              map.addOverlay(attractionMarker);
+              
+              const attractionInfoWindow = new BMap.InfoWindow(`
+                <div style="padding: 10px;">
+                  <h5 style="margin: 0 0 8px 0;">${attraction.name}</h5>
+                  ${attraction.address ? `<p><strong>地址:</strong> ${attraction.address}</p>` : ''}
+                  ${attraction.description ? `<p><strong>描述:</strong> ${attraction.description}</p>` : ''}
+                </div>
+              `);
+              
+              attractionMarker.addEventListener('click', () => {
+                map.openInfoWindow(attractionInfoWindow, attractionPoint);
+              });
+              
+              markers.push({ marker: attractionMarker, point: attractionPoint, attraction });
+              attractionMarkers.push({ point: attractionPoint, attraction });
+            };
+            
+            // 创建景点连线的函数
+            const createAttractionConnections = (attractionMarkers) => {
+              if (attractionMarkers.length > 1) {
+                const points = attractionMarkers.map(item => item.point);
+                const polyline = new BMap.Polyline(points, {
+                  strokeColor: '#f59e0b',
+                  strokeWeight: 3,
+                  strokeOpacity: 0.8
+                });
+                map.addOverlay(polyline);
+                polylines.push(polyline);
+              }
+            };
+            
+            // 开始地理编码
+             geocodeAttractions();
+          }
         }
       });
     });
@@ -690,6 +1102,14 @@ function clearMapMarkers() {
     }
   });
   markers = [];
+  
+  // 清除百度地图的连线
+  if (mapProvider === 'baidu') {
+    polylines.forEach(polyline => {
+      map.removeOverlay(polyline);
+    });
+    polylines = [];
+  }
   
   // 清除路线
   if (directionsRenderer) {
@@ -755,17 +1175,25 @@ function openDayModal(dayData = null) {
   if (dayData) {
     title.textContent = '编辑行程';
     editId.value = dayData.id;
-    form.dayIndex.value = dayData.day_index;
+    form.dayIndex.value = dayData.dayIndex;
+    form.date.value = dayData.date || '';
     form.city.value = dayData.city;
     form.transportation.value = dayData.transportation || '';
     form.attractions.value = dayData.attractions || '';
+    
+    // 加载该天的景点列表
+    loadDayAttractions(dayData.id);
   } else {
     title.textContent = '添加行程';
     editId.value = '';
     form.reset();
     // 自动设置下一天
-    const nextDay = days.length > 0 ? Math.max(...days.map(d => d.day_index)) + 1 : 1;
+    const nextDay = days.length > 0 ? Math.max(...days.map(d => d.dayIndex)) + 1 : 1;
     form.dayIndex.value = nextDay;
+    
+    // 清空景点列表
+    currentDayAttractions = [];
+    renderAttractionsList();
   }
   
   modal.style.display = 'flex';
@@ -1079,6 +1507,46 @@ async function deleteDay(dayId) {
   }
 }
 
+// 下载文件
+async function downloadFile(fileId) {
+  try {
+    const response = await fetch(`/travenion/api/plans/${planId}/files/${fileId}`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+    });
+    
+    if (!response.ok) {
+      throw new Error('下载失败');
+    }
+    
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    
+    // 从响应头获取文件名
+    const contentDisposition = response.headers.get('content-disposition');
+    let filename = 'download';
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename="(.+)"/i);
+      if (filenameMatch) {
+        filename = filenameMatch[1];
+      }
+    }
+    
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    
+  } catch (error) {
+    console.error('下载文件失败:', error);
+    showNotification('下载文件失败', 'error');
+  }
+}
+
 // 删除文件
 async function deleteFile(fileId) {
   if (!confirm('确定要删除这个文件吗？')) {
@@ -1156,6 +1624,27 @@ async function removeShare(username) {
   }
 }
 
+// 初始化地图按钮状态
+function initMapButtons() {
+  const googleBtn = document.getElementById('googleMapBtn');
+  const baiduBtn = document.getElementById('baiduMapBtn');
+  
+  if (!googleBtn || !baiduBtn) return;
+  
+  // 清除所有状态
+  googleBtn.classList.remove('btn-outline-primary', 'btn-primary');
+  baiduBtn.classList.remove('btn-outline-primary', 'btn-primary');
+  
+  // 根据当前地图提供商设置按钮状态
+  if (mapProvider === 'google') {
+    googleBtn.classList.add('btn-primary');
+    baiduBtn.classList.add('btn-outline-primary');
+  } else {
+    baiduBtn.classList.add('btn-primary');
+    googleBtn.classList.add('btn-outline-primary');
+  }
+}
+
 // 切换地图提供商
 function switchMapProvider(provider) {
   if (provider === mapProvider) return;
@@ -1163,19 +1652,7 @@ function switchMapProvider(provider) {
   mapProvider = provider;
   
   // 更新按钮状态
-  const googleBtn = document.getElementById('googleMapBtn');
-  const baiduBtn = document.getElementById('baiduMapBtn');
-  
-  googleBtn.classList.remove('btn-outline-primary', 'btn-primary');
-  baiduBtn.classList.remove('btn-outline-primary', 'btn-primary');
-  
-  if (provider === 'google') {
-    googleBtn.classList.add('btn-primary');
-    baiduBtn.classList.add('btn-outline-primary');
-  } else {
-    baiduBtn.classList.add('btn-primary');
-    googleBtn.classList.add('btn-outline-primary');
-  }
+  initMapButtons();
   
   // 重新加载地图
   loadMap();
@@ -1251,6 +1728,9 @@ function addTouchEventHandlers() {
 document.addEventListener('DOMContentLoaded', () => {
   // 移动端适配初始化
   initMobileOptimizations();
+  
+  // 初始化地图按钮状态
+  initMapButtons();
   
   // 地图提供商切换
   const googleMapBtn = document.getElementById('googleMapBtn');
@@ -1361,7 +1841,21 @@ document.addEventListener('DOMContentLoaded', () => {
         throw new Error(editId ? '更新行程失败' : '添加行程失败');
       }
       
-      showNotification(editId ? '行程更新成功' : '行程添加成功', 'success');
+      // 获取保存后的行程日ID
+      let dayId = editId;
+      if (!dayId) {
+        const responseData = await response.json();
+        dayId = responseData.id;
+      }
+      
+      // 保存景点数据
+      const attractionsSaved = await saveAttractions(dayId);
+      if (!attractionsSaved) {
+        showNotification('行程保存成功，但景点保存失败', 'warning');
+      } else {
+        showNotification(editId ? '行程更新成功' : '行程添加成功', 'success');
+      }
+      
       closeDayModal();
       await loadDays();
       loadMap(); // 重新加载地图标记
@@ -1589,4 +2083,240 @@ if (!localStorage.getItem('token')) {
   window.location.href = 'index.html';
 } else {
   loadPlan();
+}
+
+// ==================== 景点管理功能 ====================
+
+// 加载行程日的景点列表
+async function loadDayAttractions(dayId) {
+  try {
+    const response = await fetch(`/travenion/api/attractions/day/${dayId}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    });
+    
+    if (response.ok) {
+      currentDayAttractions = await response.json();
+      renderAttractionsList();
+    } else {
+      currentDayAttractions = [];
+      renderAttractionsList();
+    }
+  } catch (error) {
+    console.error('加载景点失败:', error);
+    currentDayAttractions = [];
+    renderAttractionsList();
+  }
+}
+
+// 渲染景点列表
+function renderAttractionsList() {
+  const container = document.getElementById('attractionsContainer');
+  if (!container) return;
+  
+  container.innerHTML = '';
+  
+  if (currentDayAttractions.length === 0) {
+    container.innerHTML = '<p style="color: #666; text-align: center; margin: 10px 0;">暂无景点，点击下方按钮添加</p>';
+    return;
+  }
+  
+  currentDayAttractions.forEach((attraction, index) => {
+    const attractionItem = document.createElement('div');
+    attractionItem.className = 'attraction-item';
+    attractionItem.style.cssText = `
+      display: flex;
+      align-items: center;
+      padding: 10px;
+      margin-bottom: 8px;
+      background: white;
+      border: 1px solid #e1e5e9;
+      border-radius: 6px;
+      position: relative;
+    `;
+    
+    attractionItem.innerHTML = `
+      <div style="flex: 1; min-width: 0;">
+        <div style="display: flex; align-items: center; margin-bottom: 4px;">
+          <span style="background: #007bff; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 12px; margin-right: 8px;">${index + 1}</span>
+          <strong style="color: #333;">${attraction.name}</strong>
+        </div>
+        ${attraction.description ? `<p style="margin: 0; color: #666; font-size: 14px;">${attraction.description}</p>` : ''}
+        ${attraction.address ? `<p style="margin: 2px 0 0 0; color: #888; font-size: 12px;"><i class="fas fa-map-marker-alt"></i> ${attraction.address}</p>` : ''}
+      </div>
+      <div style="display: flex; gap: 5px; margin-left: 10px;">
+        <button type="button" onclick="editAttractionItem(${index})" style="background: #28a745; color: white; border: none; border-radius: 4px; padding: 5px 8px; font-size: 12px; cursor: pointer;">
+          <i class="fas fa-edit"></i>
+        </button>
+        <button type="button" onclick="deleteAttractionItem(${index})" style="background: #dc3545; color: white; border: none; border-radius: 4px; padding: 5px 8px; font-size: 12px; cursor: pointer;">
+          <i class="fas fa-trash"></i>
+        </button>
+        ${index > 0 ? `<button type="button" onclick="moveAttractionUp(${index})" style="background: #6c757d; color: white; border: none; border-radius: 4px; padding: 5px 8px; font-size: 12px; cursor: pointer;"><i class="fas fa-arrow-up"></i></button>` : ''}
+        ${index < currentDayAttractions.length - 1 ? `<button type="button" onclick="moveAttractionDown(${index})" style="background: #6c757d; color: white; border: none; border-radius: 4px; padding: 5px 8px; font-size: 12px; cursor: pointer;"><i class="fas fa-arrow-down"></i></button>` : ''}
+      </div>
+    `;
+    
+    container.appendChild(attractionItem);
+  });
+}
+
+// 景点编辑相关变量
+let currentEditingAttraction = null;
+let isEditingAttraction = false;
+
+// 添加景点项
+function addAttractionItem() {
+  currentEditingAttraction = null;
+  isEditingAttraction = false;
+  document.getElementById('attractionModalTitle').textContent = '添加景点';
+  document.getElementById('attractionSaveText').textContent = '保存';
+  document.getElementById('attractionName').value = '';
+  document.getElementById('attractionAddress').value = '';
+  document.getElementById('attractionDescription').value = '';
+  document.getElementById('attractionModal').style.display = 'block';
+}
+
+// 关闭景点模态框
+function closeAttractionModal() {
+  document.getElementById('attractionModal').style.display = 'none';
+  currentEditingAttraction = null;
+  isEditingAttraction = false;
+}
+
+// 保存景点
+function saveAttraction() {
+  const name = document.getElementById('attractionName').value.trim();
+  if (!name) {
+    alert('请输入景点名称');
+    return;
+  }
+  
+  const address = document.getElementById('attractionAddress').value.trim();
+  const description = document.getElementById('attractionDescription').value.trim();
+  
+  if (isEditingAttraction && currentEditingAttraction !== null) {
+    // 编辑现有景点
+    currentDayAttractions[currentEditingAttraction] = {
+      ...currentDayAttractions[currentEditingAttraction],
+      name: name,
+      address: address,
+      description: description
+    };
+  } else {
+    // 添加新景点
+    const newAttraction = {
+      name: name,
+      description: description,
+      address: address,
+      latitude: null,
+      longitude: null,
+      visitOrder: currentDayAttractions.length + 1
+    };
+    currentDayAttractions.push(newAttraction);
+  }
+  
+  renderAttractionsList();
+  closeAttractionModal();
+}
+
+// 编辑景点项
+function editAttractionItem(index) {
+  const attraction = currentDayAttractions[index];
+  if (!attraction) return;
+  
+  currentEditingAttraction = index;
+  isEditingAttraction = true;
+  document.getElementById('attractionModalTitle').textContent = '编辑景点';
+  document.getElementById('attractionSaveText').textContent = '更新';
+  document.getElementById('attractionName').value = attraction.name || '';
+  document.getElementById('attractionAddress').value = attraction.address || '';
+  document.getElementById('attractionDescription').value = attraction.description || '';
+  document.getElementById('attractionModal').style.display = 'block';
+}
+
+// 删除景点项
+function deleteAttractionItem(index) {
+  if (!confirm('确定要删除这个景点吗？')) return;
+  
+  currentDayAttractions.splice(index, 1);
+  // 重新排序
+  currentDayAttractions.forEach((attraction, i) => {
+    attraction.visitOrder = i + 1;
+  });
+  renderAttractionsList();
+}
+
+// 上移景点
+function moveAttractionUp(index) {
+  if (index <= 0) return;
+  
+  const temp = currentDayAttractions[index];
+  currentDayAttractions[index] = currentDayAttractions[index - 1];
+  currentDayAttractions[index - 1] = temp;
+  
+  // 更新访问顺序
+  currentDayAttractions.forEach((attraction, i) => {
+    attraction.visitOrder = i + 1;
+  });
+  
+  renderAttractionsList();
+}
+
+// 下移景点
+function moveAttractionDown(index) {
+  if (index >= currentDayAttractions.length - 1) return;
+  
+  const temp = currentDayAttractions[index];
+  currentDayAttractions[index] = currentDayAttractions[index + 1];
+  currentDayAttractions[index + 1] = temp;
+  
+  // 更新访问顺序
+  currentDayAttractions.forEach((attraction, i) => {
+    attraction.visitOrder = i + 1;
+  });
+  
+  renderAttractionsList();
+}
+
+// 保存景点到服务器
+async function saveAttractions(dayId) {
+  try {
+    // 获取现有景点
+    const existingResponse = await fetch(`/travenion/api/attractions/day/${dayId}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    });
+    
+    if (existingResponse.ok) {
+      const existingAttractions = await existingResponse.json();
+      // 删除现有景点
+      for (const attraction of existingAttractions) {
+        await fetch(`/travenion/api/attractions/${attraction.id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+      }
+    }
+    
+    // 添加新的景点
+    for (const attraction of currentDayAttractions) {
+      await fetch(`/travenion/api/attractions/day/${dayId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(attraction)
+      });
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('保存景点失败:', error);
+    return false;
+  }
 }

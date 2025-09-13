@@ -18,6 +18,7 @@ db.TravelPlan = require('./travelPlan')(sequelize, DataTypes);
 db.PlanDay = require('./planDay')(sequelize, DataTypes);
 db.PlanFile = require('./planFile')(sequelize, DataTypes);
 db.PlanShare = require('./planShare')(sequelize, DataTypes);
+db.Attraction = require('./attraction')(sequelize, DataTypes);
 
 // associations
 
@@ -29,6 +30,9 @@ db.PlanDay.belongsTo(db.TravelPlan, { foreignKey: 'planId' });
 
 db.TravelPlan.hasMany(db.PlanFile, { foreignKey: 'planId', as: 'files' });
 db.PlanFile.belongsTo(db.TravelPlan, { foreignKey: 'planId' });
+
+db.PlanDay.hasMany(db.Attraction, { foreignKey: 'planDayId', as: 'attractionList' });
+db.Attraction.belongsTo(db.PlanDay, { foreignKey: 'planDayId' });
 
 db.TravelPlan.belongsToMany(db.User, { through: db.PlanShare, as: 'sharedWith', foreignKey: 'planId', otherKey: 'userId' });
 db.User.belongsToMany(db.TravelPlan, { through: db.PlanShare, as: 'sharedPlans', foreignKey: 'userId', otherKey: 'planId' });

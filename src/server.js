@@ -5,12 +5,14 @@ const config = require('./config');
 
 const authRoutes = require('./routes/auth');
 const planRoutes = require('./routes/plans');
+const attractionRoutes = require('./routes/attractions');
 
 const app = express();
 app.use(express.json());
 app.use('/travenion', express.static(path.join(__dirname, '..', 'public')));
 app.use('/travenion/api/auth', authRoutes);
 app.use('/travenion/api/plans', planRoutes);
+app.use('/travenion/api/attractions', attractionRoutes);
 
 const start = async () => {
   try {

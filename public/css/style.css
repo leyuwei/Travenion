@@ -41,6 +41,9 @@ body {
   box-shadow: var(--shadow);
   margin-bottom: 30px;
   padding: 15px 25px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .navbar .brand {
@@ -221,6 +224,39 @@ body {
 #map {
   height: 400px;
   width: 100%;
+}
+
+/* 地图控制按钮 */
+.map-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.map-controls .btn-group {
+  display: flex;
+  gap: 0;
+}
+
+.map-controls .btn-group .btn {
+  border-radius: 0;
+  border-right: none;
+}
+
+.map-controls .btn-group .btn:first-child {
+  border-top-left-radius: var(--border-radius);
+  border-bottom-left-radius: var(--border-radius);
+}
+
+.map-controls .btn-group .btn:last-child {
+  border-top-right-radius: var(--border-radius);
+  border-bottom-right-radius: var(--border-radius);
+  border-right: 1px solid var(--border-color);
+}
+
+.map-controls .ms-2 {
+  margin-left: 10px;
 }
 
 /* 文件上传区域 */
@@ -418,7 +454,6 @@ body {
   }
   
   .modal-content {
-    margin: 10px;
     max-width: calc(100vw - 20px);
     max-height: calc(100vh - 20px);
   }
@@ -506,7 +541,6 @@ body {
   }
   
   .modal-content {
-    margin: 5px;
     max-width: calc(100vw - 10px);
   }
   
@@ -628,14 +662,14 @@ body {
   height: 100%;
   background: rgba(0, 0, 0, 0.5);
   display: none;
-  align-items: center;
-  justify-content: center;
   z-index: 1000;
   backdrop-filter: blur(4px);
 }
 
 .modal.show {
   display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .modal-content {
@@ -880,4 +914,17 @@ body {
 
 .close:hover {
   color: var(--danger-color);
+}
+
+/* 今日行程高亮动画 */
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
 }

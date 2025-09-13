@@ -69,10 +69,18 @@ router.get('/:id/days', async (req, res) => {
 router.post('/:id/days', async (req, res) => {
   try {
     const plan = await TravelPlan.findOne({ where: { id: req.params.id, userId: req.user.id } });
-    if (!plan) return res.status(404).json({ message: '未找到' });
+    if (!plan) return res.status(404).json({ message: '未找到计划' });
+    
+    // 验证必填字段
+    const { dayIndex, city, date } = req.body;
+    if (!dayIndex || !city || !date) {
+      return res.status(400).json({ message: '第几天、城市和日期为必填项' });
+    }
+    
     const day = await PlanDay.create({ ...req.body, planId: plan.id });
     res.status(201).json(day);
   } catch (e) {
+    console.error('创建行程日失败:', e);
     res.status(500).json({ message: '创建行程日失败', error: e.message });
   }
 });
@@ -104,11 +112,19 @@ router.get('/:id/files', async (req, res) => {
 
 // 下载文件
 router.get('/:id/files/:fileId', async (req, res) => {
-  const plan = await TravelPlan.findOne({ where: { id: req.params.id, userId: req.user.id } });
-  if (!plan) return res.status(404).json({ message: '未找到' });
-  const file = await PlanFile.findOne({ where: { id: req.params.fileId, planId: plan.id } });
-  if (!file) return res.status(404).json({ message: '文件未找到' });
-  res.download(file.path, file.filename);
+  try {
+    const plan = await TravelPlan.findOne({ where: { id: req.params.id, userId: req.user.id } });
+    if (!plan) return res.status(404).json({ message: '未找到计划' });
+    const file = await PlanFile.findOne({ where: { id: req.params.fileId, planId: plan.id } });
+    if (!file) return res.status(404).json({ message: '文件未找到' });
+    
+    // 设置正确的Content-Disposition头
+    res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
+    res.download(file.path, file.filename);
+  } catch (e) {
+    console.error('下载文件失败:', e);
+    res.status(500).json({ message: '下载文件失败', error: e.message });
+  }
 });
 
 router.post('/:id/files', upload.single('file'), async (req, res) => {

@@ -10,6 +10,9 @@ node src/server.js
 ```
 
 默认后端端口为 `8311`，所有前端与接口均在 `/travenion` 路径下。
+
+## 数据库配置
+
 使用 MySQL 数据库，相关连接信息可通过环境变量配置：
 
 - `DB_HOST` (默认 `localhost`)
@@ -19,5 +22,56 @@ node src/server.js
 - `DB_NAME` (默认 `travenion`)
 - `APP_PORT` (默认 `8311`)
 - `JWT_SECRET`
+
+## 地图API配置
+
+本项目支持Google Maps和百度地图两种地图服务，采用安全的配置文件管理方式。
+
+### 快速配置
+
+1. 复制配置模板文件：
+```bash
+cp public/js/config.example.js public/js/config.js
+```
+
+2. 编辑 `public/js/config.js` 文件，配置您的API密钥：
+```javascript
+const MAP_CONFIG = {
+    GOOGLE_MAPS_API_KEY: '您的Google Maps API密钥',
+    BAIDU_MAP_API_KEY: '您的百度地图API密钥',
+    DEFAULT_MAP_PROVIDER: 'google' // 或 'baidu'
+};
+```
+
+### Google Maps API密钥获取
+
+1. 访问 [Google Cloud Console](https://console.cloud.google.com/)
+2. 创建新项目或选择现有项目
+3. 启用 Maps JavaScript API
+4. 创建 API 密钥
+5. 设置 API 密钥限制（推荐）
+
+### 百度地图API密钥获取
+
+1. 访问 [百度地图开放平台](https://lbsyun.baidu.com/)
+2. 注册开发者账号
+3. 创建应用并获取API密钥(AK)
+4. 配置服务权限
+
+### 安全特性
+
+- ✅ **配置文件分离**：API密钥不再硬编码在HTML中
+- ✅ **动态加载**：根据配置按需加载地图API
+- ✅ **Git忽略**：配置文件已添加到 `.gitignore`，防止意外提交
+- ✅ **错误提示**：提供详细的配置指导和错误信息
+- ✅ **模板文件**：提供 `config.example.js` 作为配置参考
+
+### 注意事项
+
+- 请根据您的用户群体选择合适的地图服务
+- Google Maps 适合海外用户
+- 百度地图适合中国大陆用户
+- `config.js` 文件包含敏感信息，请勿提交到公共代码仓库
+- 部署时请确保正确配置 `config.js` 文件
 
 Swagger 接口定义见 `openapi.yaml`。
