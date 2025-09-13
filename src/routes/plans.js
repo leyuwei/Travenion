@@ -67,17 +67,25 @@ router.get('/:id/days', async (req, res) => {
 });
 
 router.post('/:id/days', async (req, res) => {
-  const plan = await TravelPlan.findOne({ where: { id: req.params.id, userId: req.user.id } });
-  if (!plan) return res.status(404).json({ message: '未找到' });
-  const day = await PlanDay.create({ ...req.body, planId: plan.id });
-  res.status(201).json(day);
+  try {
+    const plan = await TravelPlan.findOne({ where: { id: req.params.id, userId: req.user.id } });
+    if (!plan) return res.status(404).json({ message: '未找到' });
+    const day = await PlanDay.create({ ...req.body, planId: plan.id });
+    res.status(201).json(day);
+  } catch (e) {
+    res.status(500).json({ message: '创建行程日失败', error: e.message });
+  }
 });
 
 router.put('/:id/days/:dayId', async (req, res) => {
-  const day = await PlanDay.findByPk(req.params.dayId);
-  if (!day) return res.status(404).json({ message: '未找到' });
-  await day.update(req.body);
-  res.json(day);
+  try {
+    const day = await PlanDay.findByPk(req.params.dayId);
+    if (!day) return res.status(404).json({ message: '未找到' });
+    await day.update(req.body);
+    res.json(day);
+  } catch (e) {
+    res.status(500).json({ message: '更新行程日失败', error: e.message });
+  }
 });
 
 router.delete('/:id/days/:dayId', async (req, res) => {
