@@ -59,6 +59,13 @@ router.post('/:id/share', async (req, res) => {
   res.json({ message: '分享成功' });
 });
 
+router.get('/:id/days', async (req, res) => {
+  const plan = await TravelPlan.findOne({ where: { id: req.params.id, userId: req.user.id } });
+  if (!plan) return res.status(404).json({ message: '未找到' });
+  const days = await PlanDay.findAll({ where: { planId: plan.id }, order: [['dayIndex', 'ASC']] });
+  res.json(days);
+});
+
 router.post('/:id/days', async (req, res) => {
   const plan = await TravelPlan.findOne({ where: { id: req.params.id, userId: req.user.id } });
   if (!plan) return res.status(404).json({ message: '未找到' });
@@ -78,6 +85,22 @@ router.delete('/:id/days/:dayId', async (req, res) => {
   if (!day) return res.status(404).json({ message: '未找到' });
   await day.destroy();
   res.status(204).end();
+});
+
+router.get('/:id/files', async (req, res) => {
+  const plan = await TravelPlan.findOne({ where: { id: req.params.id, userId: req.user.id } });
+  if (!plan) return res.status(404).json({ message: '未找到' });
+  const files = await PlanFile.findAll({ where: { planId: plan.id }, order: [['createdAt', 'DESC']] });
+  res.json(files);
+});
+
+// 下载文件
+router.get('/:id/files/:fileId', async (req, res) => {
+  const plan = await TravelPlan.findOne({ where: { id: req.params.id, userId: req.user.id } });
+  if (!plan) return res.status(404).json({ message: '未找到' });
+  const file = await PlanFile.findOne({ where: { id: req.params.fileId, planId: plan.id } });
+  if (!file) return res.status(404).json({ message: '文件未找到' });
+  res.download(file.path, file.filename);
 });
 
 router.post('/:id/files', upload.single('file'), async (req, res) => {

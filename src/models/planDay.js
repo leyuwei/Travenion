@@ -1,5 +1,9 @@
 module.exports = (sequelize, DataTypes) => {
   const PlanDay = sequelize.define('PlanDay', {
+    date: {
+      type: DataTypes.DATEONLY,
+      allowNull: false
+    },
     dayIndex: {
       type: DataTypes.INTEGER,
       allowNull: false
@@ -18,4 +22,4 @@ module.exports = (sequelize, DataTypes) => {
     }
   });
   return PlanDay;
-};
+}

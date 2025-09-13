@@ -2,49 +2,325 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>计划详情 - Travenion</title>
   <base href="/travenion/">
   <link rel="icon" href="logo.svg">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <style>#map{height:300px;}</style>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="css/style.css" rel="stylesheet">
 </head>
-<body class="container py-5">
-  <div class="mb-3"><a href="plans.html">&lt; 返回</a></div>
-  <h1 id="planTitle"></h1>
-  <div class="mb-3">
-    <label class="form-label">切换地图</label>
-    <select id="mapProvider" class="form-select w-auto">
-      <option value="google">Google</option>
-      <option value="baidu">百度</option>
-    </select>
-  </div>
-  <div id="map" class="mb-4"></div>
-  <h3>行程安排</h3>
-  <ul id="dayList" class="list-group mb-4"></ul>
-  <form id="dayForm" class="mb-5">
-    <div class="row g-3">
-      <div class="col-md-2">
-        <input type="number" class="form-control" name="dayIndex" placeholder="第几天" required>
+<body>
+  <div class="container">
+    <!-- 导航栏 -->
+    <nav class="navbar">
+      <a href="plans.html" class="brand">
+        <img src="logo.svg" alt="Travenion">
+        <span>Travenion</span>
+      </a>
+      <div style="display: flex; gap: 15px; align-items: center;">
+        <button id="shareBtn" class="btn btn-success">分享计划</button>
+        <button id="editPlanBtn" class="btn btn-primary">编辑计划</button>
+        <a href="plans.html" class="btn btn-outline">← 返回列表</a>
       </div>
-      <div class="col-md-3">
-        <input type="text" class="form-control" name="city" placeholder="城市" required>
-      </div>
-      <div class="col-md-3">
-        <input type="text" class="form-control" name="transportation" placeholder="交通">
-      </div>
-      <div class="col-md-4">
-        <input type="text" class="form-control" name="attractions" placeholder="景点">
+    </nav>
+
+    <!-- 计划标题和信息 -->
+    <div class="card fade-in">
+      <div class="card-header">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <div style="flex: 1;">
+            <h1 id="planTitle" class="card-title" style="margin-bottom: 10px;">加载中...</h1>
+            <p id="planDescription" style="color: #6b7280; margin: 0;"></p>
+          </div>
+          <div style="display: flex; gap: 15px; align-items: center;">
+            <div style="text-align: center;">
+              <div style="font-size: 1.5rem;">📅</div>
+              <div style="font-size: 12px; color: #6b7280;">总天数</div>
+              <div id="totalDays" style="font-weight: 600;">0</div>
+            </div>
+            <div style="text-align: center;">
+              <div style="font-size: 1.5rem;">📁</div>
+              <div style="font-size: 12px; color: #6b7280;">文件数</div>
+              <div id="totalFiles" style="font-weight: 600;">0</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
-    <button type="submit" class="btn btn-primary mt-3">添加</button>
-  </form>
-  <h3>文件上传</h3>
-  <form id="fileForm" class="mb-3">
-    <input type="file" name="file" class="form-control" required>
-    <button type="submit" class="btn btn-secondary mt-2">上传</button>
-  </form>
-  <ul id="fileList" class="list-group"></ul>
-<script src="js/plan.js"></script>
+
+    <!-- 地图和控制 -->
+    <div class="card fade-in">
+      <div class="card-header">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h2 class="card-title">🗺️ 旅行路线</h2>
+          <div class="map-controls">
+            <div class="btn-group" role="group">
+              <button type="button" class="btn btn-primary" id="googleMapBtn">
+                <i class="fas fa-globe"></i> Google地图
+              </button>
+              <button type="button" class="btn btn-outline-primary" id="baiduMapBtn">
+                <i class="fas fa-map-marked-alt"></i> 百度地图
+              </button>
+            </div>
+            <div class="btn-group ms-2" role="group">
+              <button type="button" class="btn btn-outline-success" id="showRouteBtn">
+                <i class="fas fa-route"></i> 显示路线
+              </button>
+              <button type="button" class="btn btn-outline-secondary" id="clearRouteBtn">
+                <i class="fas fa-times"></i> 清除路线
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="map-container">
+        <div id="map"></div>
+      </div>
+    </div>
+
+    <!-- 行程安排 -->
+    <div class="card fade-in">
+      <div class="card-header">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h2 class="card-title">📋 行程安排</h2>
+          <button id="addDayBtn" class="btn btn-primary">+ 添加行程</button>
+        </div>
+      </div>
+      <div id="dayListContainer">
+        <div id="emptyDays" style="display: none; text-align: center; padding: 40px;">
+          <div style="font-size: 3rem; margin-bottom: 15px;">📅</div>
+          <h3 style="color: #6b7280; margin-bottom: 10px;">还没有行程安排</h3>
+          <p style="color: #9ca3af;">添加您的第一天行程，开始规划精彩的旅程！</p>
+        </div>
+        <div id="dayList"></div>
+      </div>
+    </div>
+
+    <!-- 文件管理 -->
+    <div class="card fade-in">
+      <div class="card-header">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h2 class="card-title">📁 文件管理</h2>
+          <button id="uploadFileBtn" class="btn btn-primary">+ 上传文件</button>
+        </div>
+      </div>
+      <div id="fileListContainer">
+        <div id="emptyFiles" style="display: none; text-align: center; padding: 40px;">
+          <div style="font-size: 3rem; margin-bottom: 15px;">📄</div>
+          <h3 style="color: #6b7280; margin-bottom: 10px;">还没有上传文件</h3>
+          <p style="color: #9ca3af;">上传行程单、酒店预订、护照等重要文件</p>
+        </div>
+        <div id="fileGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 添加行程模态框 -->
+  <div id="dayModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="dayModalTitle" style="margin: 0;">添加行程</h2>
+        <button class="close" onclick="closeDayModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="dayForm">
+          <input type="hidden" id="editDayId" value="">
+          <div class="form-group">
+            <label class="form-label">第几天 *</label>
+            <input type="number" class="form-control" name="dayIndex" min="1" placeholder="例如：1" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">城市 *</label>
+            <input type="text" class="form-control" name="city" placeholder="例如：东京" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">交通方式</label>
+            <input type="text" class="form-control" name="transportation" placeholder="例如：JR山手线、出租车">
+          </div>
+          <div class="form-group">
+            <label class="form-label">景点安排</label>
+            <textarea class="form-control" name="attractions" rows="3" placeholder="例如：上午参观浅草寺，下午游览东京塔，晚上在银座购物"></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeDayModal()">取消</button>
+        <button type="submit" form="dayForm" class="btn btn-primary">
+          <span class="save-text">保存</span>
+          <span class="loading" style="display: none;"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 文件上传模态框 -->
+  <div id="fileModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 style="margin: 0;">上传文件</h2>
+        <button class="close" onclick="closeFileModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="fileForm">
+          <div class="file-upload-area" id="fileUploadArea">
+            <div style="text-align: center;">
+              <div style="font-size: 3rem; margin-bottom: 15px;">📁</div>
+              <h3 style="margin-bottom: 10px;">拖拽文件到这里</h3>
+              <p style="color: #6b7280; margin-bottom: 20px;">或者点击选择文件</p>
+              <input type="file" name="file" id="fileInput" style="display: none;" multiple>
+              <button type="button" class="btn btn-outline" onclick="document.getElementById('fileInput').click()">选择文件</button>
+            </div>
+          </div>
+          <div id="selectedFiles" style="margin-top: 20px;"></div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeFileModal()">取消</button>
+        <button type="submit" form="fileForm" class="btn btn-primary" disabled>
+          <span class="upload-text">上传文件</span>
+          <span class="loading" style="display: none;"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 分享模态框 -->
+  <div id="shareModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 style="margin: 0;">分享计划</h2>
+        <button class="close" onclick="closeShareModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="shareForm">
+          <div class="form-group">
+            <label class="form-label">分享给用户 (用户名)</label>
+            <input type="text" class="form-control" name="username" placeholder="输入要分享的用户名" required>
+          </div>
+          <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-top: 15px;">
+            <h4 style="margin-bottom: 10px;">已分享给:</h4>
+            <div id="sharedUsersList">暂无分享</div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeShareModal()">取消</button>
+        <button type="submit" form="shareForm" class="btn btn-primary">
+          <span class="share-text">分享</span>
+          <span class="loading" style="display: none;"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 分享计划模态框 -->
+  <div id="sharePlanModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3><i class="fas fa-share-alt me-2"></i>分享计划</h3>
+        <button type="button" onclick="closeModal('sharePlanModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom: 20px;">
+          <h4 style="margin-bottom: 10px; color: #1f2937;">分享设置</h4>
+          <div style="margin-bottom: 15px;">
+            <label style="display: flex; align-items: center; cursor: pointer;">
+              <input type="checkbox" id="enableSharing" style="margin-right: 8px;">
+              <span>启用公开分享</span>
+            </label>
+            <small style="color: #6b7280; margin-left: 24px;">启用后，任何人都可以通过分享链接查看此计划</small>
+          </div>
+        </div>
+        
+        <div id="shareOptions" style="display: none;">
+          <div style="margin-bottom: 20px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: 600;">分享链接</label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="shareUrl" readonly 
+                     style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background: #f8f9fa;">
+              <button type="button" class="btn btn-outline-primary" onclick="copyShareUrl()">
+                <i class="fas fa-copy"></i>
+              </button>
+            </div>
+          </div>
+          
+          <div style="margin-bottom: 20px;">
+            <h4 style="margin-bottom: 10px; color: #1f2937;">权限设置</h4>
+            <div style="margin-bottom: 10px;">
+              <label style="display: flex; align-items: center; cursor: pointer;">
+                <input type="radio" name="sharePermission" value="view" checked style="margin-right: 8px;">
+                <span>仅查看</span>
+              </label>
+              <small style="color: #6b7280; margin-left: 24px;">访客只能查看计划内容，无法编辑</small>
+            </div>
+            <div style="margin-bottom: 10px;">
+              <label style="display: flex; align-items: center; cursor: pointer;">
+                <input type="radio" name="sharePermission" value="comment" style="margin-right: 8px;">
+                <span>查看和评论</span>
+              </label>
+              <small style="color: #6b7280; margin-left: 24px;">访客可以查看计划并添加评论</small>
+            </div>
+          </div>
+          
+          <div style="margin-bottom: 20px;">
+            <h4 style="margin-bottom: 10px; color: #1f2937;">邀请用户</h4>
+            <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+              <input type="email" id="inviteEmail" placeholder="输入邮箱地址" 
+                     style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+              <button type="button" class="btn btn-primary" onclick="inviteUser()">
+                <i class="fas fa-plus"></i> 邀请
+              </button>
+            </div>
+            <div id="invitedUsers" style="max-height: 150px; overflow-y: auto;"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('sharePlanModal')">关闭</button>
+        <button type="button" class="btn btn-primary" onclick="saveShareSettings()">保存设置</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 编辑计划模态框 -->
+  <div id="editPlanModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 style="margin: 0;">编辑计划信息</h2>
+        <button class="close" onclick="closeEditPlanModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="editPlanForm">
+          <div class="form-group">
+            <label class="form-label">计划标题 *</label>
+            <input type="text" class="form-control" name="title" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">计划描述</label>
+            <textarea class="form-control" name="description" rows="3"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">默认地图服务</label>
+            <select class="form-control form-select" name="defaultMap">
+              <option value="google">Google 地图</option>
+              <option value="baidu">百度地图</option>
+            </select>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeEditPlanModal()">取消</button>
+        <button type="submit" form="editPlanForm" class="btn btn-primary">
+          <span class="update-text">更新</span>
+          <span class="loading" style="display: none;"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 通知容器 -->
+  <div id="notification-container" style="position: fixed; top: 20px; right: 20px; z-index: 1000;"></div>
+
+  <script src="js/plan.js"></script>
 </body>
 </html>
