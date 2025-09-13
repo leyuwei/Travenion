@@ -2,7 +2,8 @@ module.exports = (sequelize, DataTypes) => {
   const PlanDay = sequelize.define('PlanDay', {
     date: {
       type: DataTypes.DATEONLY,
-      allowNull: false
+      // 日期在前端不是必填项，允许为空避免因缺失导致创建失败
+      allowNull: true
     },
     dayIndex: {
       type: DataTypes.INTEGER,
