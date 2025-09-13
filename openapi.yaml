@@ -1,0 +1,258 @@
+openapi: 3.0.3
+info:
+  title: Travenion API
+  version: 1.0.0
+servers:
+  - url: /travenion/api
+paths:
+  /auth/register:
+    post:
+      summary: 用户注册
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '201':
+          description: 注册成功
+  /auth/login:
+    post:
+      summary: 用户登录
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: 登录成功，返回JWT
+  /plans:
+    get:
+      summary: 获取用户的旅游计划列表
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 成功
+    post:
+      summary: 创建旅游计划
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                defaultMap:
+                  type: string
+                  enum: [google, baidu]
+      responses:
+        '201':
+          description: 已创建
+  /plans/{id}:
+    get:
+      summary: 获取旅游计划详情
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+    put:
+      summary: 更新旅游计划
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                defaultMap:
+                  type: string
+                  enum: [google, baidu]
+      responses:
+        '200':
+          description: 已更新
+    delete:
+      summary: 删除旅游计划
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: 已删除
+  /plans/{id}/share:
+    post:
+      summary: 分享旅游计划给其它用户
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: integer
+      responses:
+        '200':
+          description: 已分享
+  /plans/{id}/days:
+    post:
+      summary: 添加行程日程
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dayIndex:
+                  type: integer
+                city:
+                  type: string
+                transportation:
+                  type: string
+                attractions:
+                  type: string
+      responses:
+        '201':
+          description: 已添加
+  /plans/{id}/days/{dayId}:
+    put:
+      summary: 更新行程日程
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: dayId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dayIndex:
+                  type: integer
+                city:
+                  type: string
+                transportation:
+                  type: string
+                attractions:
+                  type: string
+      responses:
+        '200':
+          description: 已更新
+    delete:
+      summary: 删除行程日程
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: dayId
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: 已删除
+  /plans/{id}/files:
+    post:
+      summary: 上传文件
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: 已上传
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
