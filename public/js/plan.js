@@ -158,6 +158,30 @@ function getFileIcon(filename) {
   return icons[ext] || '📄';
 }
 
+// 检测地址中的国家，用于百度地图地理编码
+function detectCountry(address) {
+  if (!address) return '';
+  const countries = [
+    { pattern: /日本|japan/i, region: '日本' },
+    { pattern: /韩国|south korea|korea/i, region: '韩国' },
+    { pattern: /美国|usa|united states|u\.s\.a|us/i, region: '美国' },
+    { pattern: /英国|united kingdom|uk|great britain|england/i, region: '英国' },
+    { pattern: /法国|france/i, region: '法国' },
+    { pattern: /德国|germany/i, region: '德国' },
+    { pattern: /加拿大|canada/i, region: '加拿大' },
+    { pattern: /澳大利亚|australia/i, region: '澳大利亚' },
+    { pattern: /新加坡|singapore/i, region: '新加坡' },
+    { pattern: /泰国|thailand/i, region: '泰国' },
+    { pattern: /马来西亚|malaysia/i, region: '马来西亚' },
+    { pattern: /菲律宾|philippines/i, region: '菲律宾' },
+    { pattern: /印度|india/i, region: '印度' }
+  ];
+  for (const { pattern, region } of countries) {
+    if (pattern.test(address)) return region;
+  }
+  return '';
+}
+
 // 检查文件是否可以预览
 function canPreviewFile(filename) {
   const ext = filename.split('.').pop().toLowerCase();
@@ -368,11 +392,9 @@ async function loadPlan() {
       mapProvider = currentPlan.defaultMap;
     }
     
-    await Promise.all([
-      loadDays(),
-      loadFiles(),
-      loadMap()
-    ]);
+    await loadDays();
+    await loadFiles();
+    await loadMap();
     
   } catch (error) {
     console.error('加载计划失败:', error);
@@ -583,9 +605,14 @@ function updateStatistics() {
 // 加载地图
 async function loadMap() {
   const mapElement = document.getElementById('map');
-  
+
   // 显示加载状态
   mapElement.innerHTML = '<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #6b7280; text-align: center; padding: 20px;"><div style="font-size: 1.2em; margin-bottom: 10px;">🗺️ 正在加载地图...</div><div style="font-size: 0.9em;">请稍候</div></div>';
+
+  // 重置路线服务
+  directionsService = null;
+  directionsRenderer = null;
+  baiduDrivingRoute = null;
   
   try {
     if (mapProvider === 'google') {
@@ -655,6 +682,7 @@ let markers = [];
 let polylines = [];
 let directionsService = null;
 let directionsRenderer = null;
+let baiduDrivingRoute = null;
 
 // 添加地图标记（仅景点）
 async function addMapMarkers() {
@@ -797,7 +825,8 @@ async function addMapMarkers() {
           if (attraction.latitude && attraction.longitude) {
             resolve(new BMap.Point(attraction.longitude, attraction.latitude));
           } else if (attraction.address) {
-            geocoder.getPoint(attraction.address, pt => resolve(pt), day.city);
+            const region = detectCountry(attraction.address) || day.city;
+            geocoder.getPoint(attraction.address, pt => resolve(pt), region);
           } else {
             resolve(null);
           }
@@ -881,50 +910,75 @@ function clearMapMarkers() {
 
 // 显示路线
 function showRoute() {
-  if (mapProvider !== 'google' || !directionsService || days.length < 2) {
+  if (days.length < 2) {
     showNotification('需要至少2个城市才能显示路线', 'info');
     return;
   }
-  
+
   const sortedDays = [...days].sort((a, b) => a.day_index - b.day_index);
-  const waypoints = [];
-  
-  // 构建路线点
-  if (sortedDays.length > 2) {
-    for (let i = 1; i < sortedDays.length - 1; i++) {
-      waypoints.push({
-        location: sortedDays[i].city,
-        stopover: true
+
+  if (mapProvider === 'google') {
+    if (!directionsService) {
+      showNotification('地图尚未准备好', 'error');
+      return;
+    }
+
+    const waypoints = [];
+    if (sortedDays.length > 2) {
+      for (let i = 1; i < sortedDays.length - 1; i++) {
+        waypoints.push({
+          location: sortedDays[i].city,
+          stopover: true
+        });
+      }
+    }
+
+    const request = {
+      origin: sortedDays[0].city,
+      destination: sortedDays[sortedDays.length - 1].city,
+      waypoints: waypoints,
+      travelMode: google.maps.TravelMode.DRIVING,
+      optimizeWaypoints: false
+    };
+
+    directionsService.route(request, (result, status) => {
+      if (status === 'OK') {
+        directionsRenderer.setDirections(result);
+        showNotification('路线规划完成', 'success');
+
+        const route = result.routes[0];
+        const totalDistance = route.legs.reduce((sum, leg) => sum + leg.distance.value, 0);
+        const totalDuration = route.legs.reduce((sum, leg) => sum + leg.duration.value, 0);
+
+        showNotification(
+          `总距离: ${(totalDistance / 1000).toFixed(1)}公里，预计时间: ${Math.round(totalDuration / 3600)}小时${Math.round((totalDuration % 3600) / 60)}分钟`,
+          'info'
+        );
+      } else {
+        showNotification('路线规划失败: ' + status, 'error');
+      }
+    });
+
+  } else if (mapProvider === 'baidu' && typeof BMap !== 'undefined') {
+    if (!baiduDrivingRoute) {
+      baiduDrivingRoute = new BMap.DrivingRoute(map, {
+        renderOptions: { map: map, autoViewport: true }
       });
-    }
-  }
-  
-  const request = {
-    origin: sortedDays[0].city,
-    destination: sortedDays[sortedDays.length - 1].city,
-    waypoints: waypoints,
-    travelMode: google.maps.TravelMode.DRIVING,
-    optimizeWaypoints: false
-  };
-  
-  directionsService.route(request, (result, status) => {
-    if (status === 'OK') {
-      directionsRenderer.setDirections(result);
-      showNotification('路线规划完成', 'success');
-      
-      // 显示路线信息
-      const route = result.routes[0];
-      const totalDistance = route.legs.reduce((sum, leg) => sum + leg.distance.value, 0);
-      const totalDuration = route.legs.reduce((sum, leg) => sum + leg.duration.value, 0);
-      
-      showNotification(
-        `总距离: ${(totalDistance / 1000).toFixed(1)}公里，预计时间: ${Math.round(totalDuration / 3600)}小时${Math.round((totalDuration % 3600) / 60)}分钟`,
-        'info'
-      );
     } else {
-      showNotification('路线规划失败: ' + status, 'error');
+      baiduDrivingRoute.clearResults();
     }
-  });
+
+    baiduDrivingRoute.setSearchCompleteCallback(() => {
+      if (baiduDrivingRoute.getStatus() === BMAP_STATUS_SUCCESS) {
+        showNotification('路线规划完成', 'success');
+      } else {
+        showNotification('路线规划失败', 'error');
+      }
+    });
+
+    const waypoints = sortedDays.slice(1, -1).map(d => d.city);
+    baiduDrivingRoute.search(sortedDays[0].city, sortedDays[sortedDays.length - 1].city, { waypoints });
+  }
 }
 
 // 模态框控制
@@ -1421,8 +1475,11 @@ function switchMapProvider(provider) {
 
 // 清除路线
 function clearRoute() {
-  if (directionsRenderer) {
+  if (mapProvider === 'google' && directionsRenderer) {
     directionsRenderer.setDirections({ routes: [] });
+    showNotification('路线已清除', 'success');
+  } else if (mapProvider === 'baidu' && baiduDrivingRoute) {
+    baiduDrivingRoute.clearResults();
     showNotification('路线已清除', 'success');
   }
 }
