@@ -618,6 +618,10 @@ async function loadMap() {
       // 动态加载OpenStreetMap
       await loadOSMMapsAPI();
 
+      if (typeof L === 'undefined') {
+        throw new Error('OpenStreetMap library failed to load');
+      }
+
       map = L.map(mapElement).setView([35.6762, 139.6503], 10);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors'
@@ -626,9 +630,13 @@ async function loadMap() {
       // 添加地点标记
       addMapMarkers();
 
-    } else {
+    } else if (mapProvider === 'baidu') {
       // 动态加载百度地图API
       await loadBaiduMapsAPI();
+
+      if (typeof BMap === 'undefined') {
+        throw new Error('Baidu Maps library failed to load');
+      }
 
       map = new BMap.Map(mapElement);
       map.centerAndZoom(new BMap.Point(116.404, 39.915), 11);
@@ -639,6 +647,8 @@ async function loadMap() {
 
       // 添加地点标记
       addMapMarkers();
+    } else {
+      throw new Error('Unsupported map provider: ' + mapProvider);
     }
     
   } catch (error) {
@@ -843,7 +853,7 @@ function clearMapMarkers() {
 }
 
 // 显示路线
-function showRoute() {
+async function showRoute() {
   if (days.length < 2) {
     showNotification('需要至少2个城市才能显示路线', 'info');
     return;
