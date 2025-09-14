@@ -30,7 +30,14 @@ app.use('/travenion/api/attractions', attractionRoutes);
 
 const start = async () => {
   try {
-    await db.sequelize.sync();
+    // 按依赖顺序同步表
+    await db.User.sync();
+    await db.TravelPlan.sync();
+    await db.PlanDay.sync();
+    await db.PlanFile.sync();
+    await db.Attraction.sync();
+    await db.PlanShare.sync();
+    
     app.listen(config.app.port, () => console.log(`服务器已在端口${config.app.port}启动`));
   } catch (e) {
     console.error('无法连接数据库', e);

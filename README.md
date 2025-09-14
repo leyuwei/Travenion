@@ -179,6 +179,18 @@ JWT_SECRET=your_jwt_secret_key_here
 NODE_ENV=production
 ```
 
+#### 初始化数据库表
+```bash
+# 首次部署时，确保数据库为空或删除现有表
+# 应用会按正确的依赖顺序自动创建所有表
+mysql -u travenion -p travenion -e "DROP DATABASE IF EXISTS travenion; CREATE DATABASE travenion CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+```
+
+**注意事项：**
+- 应用启动时会自动创建所有必需的数据表
+- 表创建顺序已优化，避免外键依赖问题
+- 如果遇到表创建错误，请确保数据库为空状态
+
 #### 配置地图API
 ```bash
 # 复制配置模板
@@ -531,24 +543,42 @@ crontab -e
    sudo systemctl status mysql
    ```
 
-3. **Nginx配置错误**
+3. **数据库表创建失败（外键依赖错误）**
    ```bash
-   # 测试Nginx配置
-   sudo nginx -t
+   # 错误信息：Failed to open the referenced table 'Users'
+   # 解决方案：重新初始化数据库
+   mysql -u travenion -p
+   ```
    
-   # 查看Nginx错误日志
-   sudo tail -f /var/log/nginx/error.log
+   ```sql
+   DROP DATABASE travenion;
+   CREATE DATABASE travenion CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+   EXIT;
+   ```
+   
+   ```bash
+   # 重启应用，让表按正确顺序创建
+   sudo systemctl restart travenion
    ```
 
-4. **端口访问问题**
-   ```bash
-   # 检查端口是否被占用
-   sudo netstat -tlnp | grep :80
-   
-   # 检查防火墙状态
-   sudo ufw status  # Ubuntu/Debian
-   sudo firewall-cmd --list-all  # CentOS/RHEL
-   ```
+4. **Nginx配置错误**
+     ```bash
+     # 测试Nginx配置
+     sudo nginx -t
+     
+     # 查看Nginx错误日志
+     sudo tail -f /var/log/nginx/error.log
+     ```
+ 
+ 5. **端口访问问题**
+     ```bash
+     # 检查端口是否被占用
+     sudo netstat -tlnp | grep :80
+     
+     # 检查防火墙状态
+     sudo ufw status  # Ubuntu/Debian
+     sudo firewall-cmd --list-all  # CentOS/RHEL
+     ```
 
 ### 9. 更新部署
 
