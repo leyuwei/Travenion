@@ -584,10 +584,10 @@ function renderDays() {
         ${day.attractionsList && day.attractionsList.length > 0 ? `
           <div style="margin-top: 8px;">
             ${day.attractionsList.map((attraction, index) => `
-              <div style="display: flex; align-items: center; padding: 8px; margin-bottom: 6px; background: #f8fafc; border-radius: 6px; border-left: 3px solid #3b82f6;">
+              <div class="main-attraction-item" data-attraction-name="${attraction.name.replace(/"/g, '&quot;')}" style="display: flex; align-items: center; padding: 8px; margin-bottom: 6px; background: #f8fafc; border-radius: 6px; border-left: 3px solid #3b82f6; cursor: pointer; transition: all 0.2s ease;">
                 <span style="background: #3b82f6; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 12px; margin-right: 10px; flex-shrink: 0;">${index + 1}</span>
                 <div style="flex: 1; min-width: 0;">
-                  <div style="font-weight: 500; color: #1f2937; margin-bottom: 2px;">${attraction.name}</div>
+                  <div style="font-weight: 500; color: #1f2937; margin-bottom: 2px;">${attraction.name} <span style="color: #3b82f6; font-size: 12px;">📍 点击查看</span></div>
                   ${attraction.description ? `<div style="color: #6b7280; font-size: 13px; margin-bottom: 2px;">${attraction.description}</div>` : ''}
                   ${attraction.address ? `<div style="color: #9ca3af; font-size: 12px;"><i class="fas fa-map-marker-alt"></i> ${attraction.address}</div>` : ''}
                 </div>
@@ -603,6 +603,27 @@ function renderDays() {
     </div>
   `;
   }).join('');
+  
+  // 为主页面的景点框添加点击事件监听器
+  setTimeout(() => {
+    const mainAttractionItems = document.querySelectorAll('.main-attraction-item');
+    mainAttractionItems.forEach(item => {
+      item.addEventListener('click', () => {
+        const attractionName = item.getAttribute('data-attraction-name');
+        highlightAttractionOnMap(attractionName);
+      });
+      
+      // 添加悬停效果
+      item.addEventListener('mouseover', () => {
+        item.style.backgroundColor = '#e0f2fe';
+        item.style.transform = 'translateX(4px)';
+      });
+      item.addEventListener('mouseout', () => {
+        item.style.backgroundColor = '#f8fafc';
+        item.style.transform = 'translateX(0)';
+      });
+    });
+  }, 0);
 }
 
 // 加载文件列表
@@ -763,6 +784,7 @@ let directionsService = null;
 let directionsRenderer = null;
 let baiduDrivingRoute = null;
 let routePolyline = null;
+let attractionMarkers = []; // 存储景点标记信息，用于点击放大功能
 
 // 添加地图标记（仅景点）
 async function addMapMarkers() {
@@ -917,7 +939,7 @@ async function addMapMarkers() {
           <div style="min-width: 220px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
             <div style="background: linear-gradient(135deg, #007bff, #0056b3); color: white; margin: -9px -9px 12px -9px; padding: 12px; border-radius: 4px 4px 0 0;">
               <h4 style="margin: 0; font-size: 16px; font-weight: 600;">${attraction.name}</h4>
-              <div style="font-size: 12px; opacity: 0.9; margin-top: 4px;">第${attraction.dayIndex + 1}天 · 景点${attraction.globalOrder}</div>
+              <div style="font-size: 12px; opacity: 0.9; margin-top: 4px;">第${attraction.dayIndex}天 · 景点${attraction.globalOrder}</div>
             </div>
             ${attraction.address ? `<div style="margin-bottom: 8px; font-size: 13px; color: #555;"><strong>📍 地址:</strong> ${attraction.address}</div>` : ''}
             ${attraction.description ? `<div style="font-size: 13px; color: #666; line-height: 1.4;"><strong>📝 描述:</strong> ${attraction.description}</div>` : ''}
@@ -932,6 +954,13 @@ async function addMapMarkers() {
         // 添加到地图
         marker.addTo(map);
         markers.push(marker);
+        
+        // 存储标记信息用于点击放大功能
+        attractionMarkers.push({
+          marker: marker,
+          attraction: attraction,
+          coordinates: [lat, lng]
+        });
         
         // 记录有效景点和路径点
         validAttractions.push(attraction);
@@ -1076,8 +1105,19 @@ async function addMapMarkers() {
         marker.addEventListener('click', () => {
           map.openInfoWindow(infoWindow, point);
         });
+        
+        // 为标记添加infoWindow属性以便点击放大功能使用
+        marker.infoWindow = infoWindow;
 
         markers.push({ marker, point, attraction, infoWindow });
+        
+        // 存储标记信息用于点击放大功能
+        attractionMarkers.push({
+          marker: marker,
+          attraction: attraction,
+          coordinates: [point.lat, point.lng]
+        });
+        
         globalPathPoints.push(point);
         viewportPoints.push(point);
         markerIndex++;
@@ -1111,6 +1151,7 @@ function clearMapMarkers() {
     }
   });
   markers = [];
+  attractionMarkers = []; // 清空景点标记信息
 
   polylines.forEach(polyline => {
     if (mapProvider === 'openstreetmap') {
@@ -1129,6 +1170,39 @@ function clearMapMarkers() {
     map.removeLayer(routePolyline);
     routePolyline = null;
   }
+}
+
+// 景点点击放大功能
+function highlightAttractionOnMap(attractionName) {
+  const attractionMarker = attractionMarkers.find(item => 
+    item.attraction.name === attractionName
+  );
+  
+  if (!attractionMarker) {
+    console.warn(`未找到景点标记: ${attractionName}`);
+    return;
+  }
+  
+  const { marker, coordinates } = attractionMarker;
+  
+  if (mapProvider === 'openstreetmap') {
+    // OpenStreetMap: 设置视图并打开弹出窗口
+    map.setView(coordinates, 16, { animate: true, duration: 1 });
+    setTimeout(() => {
+      marker.openPopup();
+    }, 500);
+  } else if (mapProvider === 'baidu') {
+    // 百度地图: 设置中心点并打开信息窗口
+    const point = new BMap.Point(coordinates[1], coordinates[0]); // 注意百度地图坐标顺序
+    map.centerAndZoom(point, 16);
+    setTimeout(() => {
+      if (marker.infoWindow) {
+        map.openInfoWindow(marker.infoWindow, point);
+      }
+    }, 500);
+  }
+  
+  console.log(`地图聚焦到景点: ${attractionName}`);
 }
 
 // 显示路线
@@ -2087,10 +2161,11 @@ function renderAttractionsList() {
     `;
     
     attractionItem.innerHTML = `
-      <div style="flex: 1; min-width: 0;">
+      <div class="attraction-clickable" style="flex: 1; min-width: 0; cursor: pointer;">
         <div style="display: flex; align-items: center; margin-bottom: 4px;">
           <span style="background: #007bff; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 12px; margin-right: 8px;">${index + 1}</span>
           <strong style="color: #333;">${attraction.name}</strong>
+          <span style="margin-left: 8px; color: #007bff; font-size: 12px;">📍 点击查看</span>
         </div>
         ${attraction.description ? `<p style="margin: 0; color: #666; font-size: 14px;">${attraction.description}</p>` : ''}
         ${attraction.address ? `<p style="margin: 2px 0 0 0; color: #888; font-size: 12px;"><i class="fas fa-map-marker-alt"></i> ${attraction.address}</p>` : ''}
@@ -2106,6 +2181,20 @@ function renderAttractionsList() {
         ${index < currentDayAttractions.length - 1 ? `<button type="button" onclick="moveAttractionDown(${index})" style="background: #6c757d; color: white; border: none; border-radius: 4px; padding: 5px 8px; font-size: 12px; cursor: pointer;"><i class="fas fa-arrow-down"></i></button>` : ''}
       </div>
     `;
+    
+    // 添加点击事件监听器
+    const clickableDiv = attractionItem.querySelector('.attraction-clickable');
+    clickableDiv.addEventListener('click', () => {
+      highlightAttractionOnMap(attraction.name);
+    });
+    
+    // 添加悬停效果
+    clickableDiv.addEventListener('mouseover', () => {
+      clickableDiv.style.backgroundColor = '#f8f9fa';
+    });
+    clickableDiv.addEventListener('mouseout', () => {
+      clickableDiv.style.backgroundColor = 'transparent';
+    });
     
     container.appendChild(attractionItem);
   });
