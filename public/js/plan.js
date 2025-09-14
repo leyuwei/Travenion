@@ -1,5 +1,5 @@
 let planId = new URLSearchParams(location.search).get('id');
-let map, mapProvider = 'google';
+let map, mapProvider = 'openstreetmap';
 let currentPlan = null;
 let days = [];
 let files = [];
@@ -11,37 +11,36 @@ if (typeof window.MAP_CONFIG !== 'undefined' && window.MAP_CONFIG.DEFAULT_MAP_PR
 }
 
 // 地图API加载状态
-let googleMapsLoaded = false;
+let osmLoaded = false;
 let baiduMapsLoaded = false;
 
-// 动态加载Google Maps API
-function loadGoogleMapsAPI() {
+// 动态加载OpenStreetMap (Leaflet)
+function loadOSMMapsAPI() {
   return new Promise((resolve, reject) => {
-    if (googleMapsLoaded || (typeof google !== 'undefined' && google.maps)) {
-      googleMapsLoaded = true;
+    if (osmLoaded || typeof L !== 'undefined') {
+      osmLoaded = true;
       resolve();
       return;
     }
-    
-    if (!window.MAP_CONFIG || window.MAP_CONFIG.GOOGLE_MAPS_API_KEY === 'YOUR_GOOGLE_MAPS_API_KEY') {
-      reject(new Error('Google Maps API密钥未配置'));
-      return;
-    }
-    
+
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    document.head.appendChild(link);
+
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${window.MAP_CONFIG.GOOGLE_MAPS_API_KEY}&libraries=places`;
+    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
     script.async = true;
-    script.defer = true;
-    
+
     script.onload = () => {
-      googleMapsLoaded = true;
+      osmLoaded = true;
       resolve();
     };
-    
+
     script.onerror = () => {
-      reject(new Error('Google Maps API加载失败'));
+      reject(new Error('OpenStreetMap API加载失败'));
     };
-    
+
     document.head.appendChild(script);
   });
 }
@@ -615,36 +614,29 @@ async function loadMap() {
   baiduDrivingRoute = null;
   
   try {
-    if (mapProvider === 'google') {
-      // 动态加载Google Maps API
-      await loadGoogleMapsAPI();
-      
-      map = new google.maps.Map(mapElement, {
-        zoom: 10,
-        center: { lat: 35.6762, lng: 139.6503 },
-        styles: [
-          {
-            featureType: 'poi',
-            elementType: 'labels',
-            stylers: [{ visibility: 'on' }]
-          }
-        ]
-      });
-      
+    if (mapProvider === 'openstreetmap') {
+      // 动态加载OpenStreetMap
+      await loadOSMMapsAPI();
+
+      map = L.map(mapElement).setView([35.6762, 139.6503], 10);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
+
       // 添加地点标记
       addMapMarkers();
-      
+
     } else {
       // 动态加载百度地图API
       await loadBaiduMapsAPI();
-      
+
       map = new BMap.Map(mapElement);
       map.centerAndZoom(new BMap.Point(116.404, 39.915), 11);
       map.addControl(new BMap.MapTypeControl());
       map.addControl(new BMap.ScaleControl());
       map.addControl(new BMap.OverviewMapControl());
       map.addControl(new BMap.NavigationControl());
-      
+
       // 添加地点标记
       addMapMarkers();
     }
@@ -652,28 +644,15 @@ async function loadMap() {
   } catch (error) {
     console.error('地图加载失败:', error);
     
-    let errorMessage = '';
-    if (error.message.includes('密钥未配置')) {
-      errorMessage = `
-        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #f59e0b; text-align: center; padding: 20px;">
-          <div style="font-size: 1.2em; margin-bottom: 10px;">🔑 ${mapProvider === 'google' ? 'Google Maps' : '百度地图'} API 未配置</div>
-          <div style="font-size: 0.9em; margin-bottom: 15px;">请在 js/config.js 文件中配置有效的API密钥</div>
-          <div style="font-size: 0.8em; color: #9ca3af; background: #f9fafb; padding: 10px; border-radius: 6px; max-width: 300px;">
-            配置文件位置：public/js/config.js<br>
-            需要配置：${mapProvider === 'google' ? 'GOOGLE_MAPS_API_KEY' : 'BAIDU_MAP_API_KEY'}
-          </div>
-        </div>
-      `;
-    } else {
-      errorMessage = `
-        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #ef4444; text-align: center; padding: 20px;">
-          <div style="font-size: 1.2em; margin-bottom: 10px;">⚠️ ${mapProvider === 'google' ? 'Google Maps' : '百度地图'} 加载失败</div>
-          <div style="font-size: 0.9em; margin-bottom: 10px;">请检查API密钥配置或网络连接</div>
-          <div style="font-size: 0.8em; color: #9ca3af;">${error.message}</div>
-        </div>
-      `;
-    }
-    
+    const providerName = mapProvider === 'openstreetmap' ? 'OpenStreetMap' : '百度地图';
+    const errorMessage = `
+      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #ef4444; text-align: center; padding: 20px;">
+        <div style="font-size: 1.2em; margin-bottom: 10px;">⚠️ ${providerName} 加载失败</div>
+        <div style="font-size: 0.9em; margin-bottom: 10px;">请检查网络连接</div>
+        <div style="font-size: 0.8em; color: #9ca3af;">${error.message}</div>
+      </div>
+    `;
+
     mapElement.innerHTML = errorMessage;
   }
 }
@@ -683,6 +662,7 @@ let polylines = [];
 let directionsService = null;
 let directionsRenderer = null;
 let baiduDrivingRoute = null;
+let routePolyline = null;
 
 // 添加地图标记（仅景点）
 async function addMapMarkers() {
@@ -690,22 +670,8 @@ async function addMapMarkers() {
 
   clearMapMarkers();
 
-  if (mapProvider === 'google' && typeof google !== 'undefined') {
-    if (!directionsService) {
-      directionsService = new google.maps.DirectionsService();
-      directionsRenderer = new google.maps.DirectionsRenderer({
-        suppressMarkers: true,
-        polylineOptions: {
-          strokeColor: '#3b82f6',
-          strokeWeight: 4,
-          strokeOpacity: 0.8
-        }
-      });
-      directionsRenderer.setMap(map);
-    }
-
-    const geocoder = new google.maps.Geocoder();
-    const bounds = new google.maps.LatLngBounds();
+  if (mapProvider === 'openstreetmap' && typeof L !== 'undefined') {
+    const bounds = L.latLngBounds();
     const sortedDays = [...days].sort((a, b) => a.day_index - b.day_index);
 
     for (const day of sortedDays) {
@@ -726,77 +692,41 @@ async function addMapMarkers() {
         const attraction = dayAttractions[i];
 
         if ((!attraction.latitude || !attraction.longitude) && attraction.address) {
-          await new Promise(resolve => {
-            geocoder.geocode({ address: `${attraction.address}, ${day.city}` }, (results, status) => {
-              if (status === 'OK' && results[0]) {
-                attraction.latitude = results[0].geometry.location.lat();
-                attraction.longitude = results[0].geometry.location.lng();
-              }
-              resolve();
-            });
-          });
+          try {
+            const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(attraction.address + ', ' + day.city)}`);
+            const data = await resp.json();
+            if (data[0]) {
+              attraction.latitude = parseFloat(data[0].lat);
+              attraction.longitude = parseFloat(data[0].lon);
+            }
+          } catch (e) {
+            console.error('地理编码失败:', e);
+          }
         }
 
         if (attraction.latitude && attraction.longitude) {
-          const position = new google.maps.LatLng(attraction.latitude, attraction.longitude);
-          const marker = new google.maps.Marker({
-            position,
-            map,
-            title: attraction.name,
-            icon: {
-              path: google.maps.SymbolPath.CIRCLE,
-              scale: 12,
-              fillColor: '#f59e0b',
-              fillOpacity: 1,
-              strokeColor: '#ffffff',
-              strokeWeight: 2
-            },
-            label: {
-              text: (i + 1).toString(),
-              color: '#ffffff',
-              fontWeight: 'bold',
-              fontSize: '12px'
-            }
-          });
+          const marker = L.marker([attraction.latitude, attraction.longitude]).addTo(map);
+          marker.bindPopup(`
+            <div style="padding: 10px; max-width: 250px;">
+              <h5 style="margin: 0 0 8px 0; color: #1f2937;">${attraction.name}</h5>
+              ${attraction.address ? `<div style="margin-bottom: 6px; font-size: 13px;">📍 ${attraction.address}</div>` : ''}
+              ${attraction.description ? `<div style="font-size: 13px;">📝 ${attraction.description}</div>` : ''}
+            </div>`);
 
-          const infoWindow = new google.maps.InfoWindow({
-            content: `
-              <div style="padding: 10px; max-width: 250px;">
-                <h5 style="margin: 0 0 8px 0; color: #1f2937;">${attraction.name}</h5>
-                ${attraction.address ? `<div style="margin-bottom: 6px;"><span style="color: #6b7280; font-size: 13px;">📍 地址:</span><span style="margin-left: 5px; font-size: 13px;">${attraction.address}</span></div>` : ''}
-                ${attraction.description ? `<div><span style="color: #6b7280; font-size: 13px;">📝 描述:</span><div style="margin-top: 4px; font-size: 13px; color: #374151;">${attraction.description}</div></div>` : ''}
-              </div>`
-          });
-
-          marker.addListener('click', () => {
-            markers.forEach(m => m.infoWindow && m.infoWindow.close());
-            infoWindow.open(map, marker);
-          });
-
-          markers.push({ marker, infoWindow, position, attraction });
-          path.push(position);
-          bounds.extend(position);
+          markers.push(marker);
+          path.push([attraction.latitude, attraction.longitude]);
+          bounds.extend([attraction.latitude, attraction.longitude]);
         }
       }
 
       if (path.length > 1) {
-        const polyline = new google.maps.Polyline({
-          path,
-          geodesic: true,
-          strokeColor: '#f59e0b',
-          strokeOpacity: 1.0,
-          strokeWeight: 2
-        });
-        polyline.setMap(map);
+        const polyline = L.polyline(path, { color: '#f59e0b', weight: 2 }).addTo(map);
         polylines.push(polyline);
       }
     }
 
-    if (!bounds.isEmpty()) {
+    if (bounds.isValid()) {
       map.fitBounds(bounds);
-      google.maps.event.addListenerOnce(map, 'bounds_changed', () => {
-        if (map.getZoom() > 15) map.setZoom(15);
-      });
     }
 
   } else if (mapProvider === 'baidu' && typeof BMap !== 'undefined') {
@@ -885,9 +815,8 @@ async function addMapMarkers() {
 // 清除地图标记
 function clearMapMarkers() {
   markers.forEach(item => {
-    if (mapProvider === 'google') {
-      item.marker.setMap(null);
-      item.infoWindow && item.infoWindow.close();
+    if (mapProvider === 'openstreetmap') {
+      map.removeLayer(item);
     } else if (mapProvider === 'baidu') {
       map.removeOverlay(item.marker);
     }
@@ -895,8 +824,8 @@ function clearMapMarkers() {
   markers = [];
 
   polylines.forEach(polyline => {
-    if (mapProvider === 'google') {
-      polyline.setMap(null);
+    if (mapProvider === 'openstreetmap') {
+      map.removeLayer(polyline);
     } else if (mapProvider === 'baidu') {
       map.removeOverlay(polyline);
     }
@@ -905,6 +834,11 @@ function clearMapMarkers() {
 
   if (directionsRenderer) {
     directionsRenderer.setDirections({ routes: [] });
+  }
+
+  if (routePolyline) {
+    map.removeLayer(routePolyline);
+    routePolyline = null;
   }
 }
 
@@ -917,47 +851,30 @@ function showRoute() {
 
   const sortedDays = [...days].sort((a, b) => a.day_index - b.day_index);
 
-  if (mapProvider === 'google') {
-    if (!directionsService) {
-      showNotification('地图尚未准备好', 'error');
-      return;
-    }
-
-    const waypoints = [];
-    if (sortedDays.length > 2) {
-      for (let i = 1; i < sortedDays.length - 1; i++) {
-        waypoints.push({
-          location: sortedDays[i].city,
-          stopover: true
-        });
+  if (mapProvider === 'openstreetmap') {
+    const coords = [];
+    for (const day of sortedDays) {
+      try {
+        const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(day.city)}`);
+        const data = await resp.json();
+        if (data[0]) {
+          coords.push([parseFloat(data[0].lat), parseFloat(data[0].lon)]);
+        }
+      } catch (e) {
+        console.error('路线地理编码失败:', e);
       }
     }
 
-    const request = {
-      origin: sortedDays[0].city,
-      destination: sortedDays[sortedDays.length - 1].city,
-      waypoints: waypoints,
-      travelMode: google.maps.TravelMode.DRIVING,
-      optimizeWaypoints: false
-    };
-
-    directionsService.route(request, (result, status) => {
-      if (status === 'OK') {
-        directionsRenderer.setDirections(result);
-        showNotification('路线规划完成', 'success');
-
-        const route = result.routes[0];
-        const totalDistance = route.legs.reduce((sum, leg) => sum + leg.distance.value, 0);
-        const totalDuration = route.legs.reduce((sum, leg) => sum + leg.duration.value, 0);
-
-        showNotification(
-          `总距离: ${(totalDistance / 1000).toFixed(1)}公里，预计时间: ${Math.round(totalDuration / 3600)}小时${Math.round((totalDuration % 3600) / 60)}分钟`,
-          'info'
-        );
-      } else {
-        showNotification('路线规划失败: ' + status, 'error');
+    if (coords.length > 1) {
+      if (routePolyline) {
+        map.removeLayer(routePolyline);
       }
-    });
+      routePolyline = L.polyline(coords, { color: '#3b82f6', weight: 4 }).addTo(map);
+      map.fitBounds(L.latLngBounds(coords));
+      showNotification('路线规划完成', 'success');
+    } else {
+      showNotification('路线规划失败', 'error');
+    }
 
   } else if (mapProvider === 'baidu' && typeof BMap !== 'undefined') {
     if (!baiduDrivingRoute) {
@@ -1278,7 +1195,7 @@ function openEditPlanModal() {
   if (currentPlan) {
     form.title.value = currentPlan.title;
     form.description.value = currentPlan.description || '';
-    form.defaultMap.value = currentPlan.defaultMap || 'google';
+    form.defaultMap.value = currentPlan.defaultMap || 'openstreetmap';
   }
   
   modal.style.display = 'flex';
@@ -1441,22 +1358,22 @@ async function removeShare(username) {
 
 // 初始化地图按钮状态
 function initMapButtons() {
-  const googleBtn = document.getElementById('googleMapBtn');
+  const osmBtn = document.getElementById('osmMapBtn');
   const baiduBtn = document.getElementById('baiduMapBtn');
-  
-  if (!googleBtn || !baiduBtn) return;
-  
+
+  if (!osmBtn || !baiduBtn) return;
+
   // 清除所有状态
-  googleBtn.classList.remove('btn-outline-primary', 'btn-primary');
+  osmBtn.classList.remove('btn-outline-primary', 'btn-primary');
   baiduBtn.classList.remove('btn-outline-primary', 'btn-primary');
-  
+
   // 根据当前地图提供商设置按钮状态
-  if (mapProvider === 'google') {
-    googleBtn.classList.add('btn-primary');
+  if (mapProvider === 'openstreetmap') {
+    osmBtn.classList.add('btn-primary');
     baiduBtn.classList.add('btn-outline-primary');
   } else {
     baiduBtn.classList.add('btn-primary');
-    googleBtn.classList.add('btn-outline-primary');
+    osmBtn.classList.add('btn-outline-primary');
   }
 }
 
@@ -1475,8 +1392,9 @@ function switchMapProvider(provider) {
 
 // 清除路线
 function clearRoute() {
-  if (mapProvider === 'google' && directionsRenderer) {
-    directionsRenderer.setDirections({ routes: [] });
+  if (mapProvider === 'openstreetmap' && routePolyline) {
+    map.removeLayer(routePolyline);
+    routePolyline = null;
     showNotification('路线已清除', 'success');
   } else if (mapProvider === 'baidu' && baiduDrivingRoute) {
     baiduDrivingRoute.clearResults();
@@ -1551,15 +1469,15 @@ document.addEventListener('DOMContentLoaded', () => {
   initMapButtons();
   
   // 地图提供商切换
-  const googleMapBtn = document.getElementById('googleMapBtn');
+  const osmMapBtn = document.getElementById('osmMapBtn');
   const baiduMapBtn = document.getElementById('baiduMapBtn');
-  
-  if (googleMapBtn) {
-    googleMapBtn.addEventListener('click', () => {
-      switchMapProvider('google');
+
+  if (osmMapBtn) {
+    osmMapBtn.addEventListener('click', () => {
+      switchMapProvider('openstreetmap');
     });
   }
-  
+
   if (baiduMapBtn) {
     baiduMapBtn.addEventListener('click', () => {
       switchMapProvider('baidu');

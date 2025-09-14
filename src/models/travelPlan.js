@@ -9,8 +9,8 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true
     },
     defaultMap: {
-      type: DataTypes.ENUM('google', 'baidu'),
-      defaultValue: 'google'
+      type: DataTypes.ENUM('openstreetmap', 'baidu'),
+      defaultValue: 'openstreetmap'
     }
   });
   return TravelPlan;

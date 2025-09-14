@@ -130,7 +130,7 @@ function renderPlans() {
         
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
           <div style="display: flex; gap: 10px;">
-            <span class="badge badge-secondary">${plan.defaultMap === 'google' ? 'Google地图' : '百度地图'}</span>
+            <span class="badge badge-secondary">${plan.defaultMap === 'openstreetmap' ? 'OpenStreetMap' : '百度地图'}</span>
             ${sharedCount > 0 ? `<span class="badge">已分享给${sharedCount}人</span>` : ''}
           </div>
           <span style="font-size: 12px; color: #9ca3af;">创建于 ${formatDate(plan.createdAt)}</span>
