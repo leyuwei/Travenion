@@ -195,7 +195,9 @@ nano public/js/config.js
 sudo nano /etc/nginx/sites-available/travenion
 ```
 
-添加以下配置：
+根据部署需求，可以选择以下两种配置方式：
+
+**方式一：独立域名部署（推荐用于生产环境）**
 ```nginx
 server {
     listen 80;
@@ -242,6 +244,64 @@ server {
     gzip_types text/plain text/css text/xml text/javascript application/javascript application/xml+rss application/json;
 }
 ```
+
+**方式二：子路径部署（适用于多应用共享域名）**
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;  # 替换为您的域名或IP地址
+    
+    # 安全头
+    add_header X-Frame-Options DENY;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-XSS-Protection "1; mode=block";
+    
+    # 日志配置
+    access_log /var/log/nginx/access.log;
+    error_log /var/log/nginx/error.log;
+    
+    # Travenion应用 - 子路径部署
+    location /travenion/ {
+        proxy_pass http://127.0.0.1:8311/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        
+        # 超时设置
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+    
+    # 重定向根路径到travenion（可选）
+    location = /travenion {
+        return 301 /travenion/;
+    }
+    
+    # 其他应用可以添加在这里
+    # location /other-app/ {
+    #     proxy_pass http://127.0.0.1:8080/;
+    #     proxy_set_header Host $host;
+    # }
+    
+    # Gzip压缩
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css text/xml text/javascript application/javascript application/xml+rss application/json;
+}
+```
+
+**子路径部署说明：**
+- 应用将通过 `http://your-domain.com/travenion/` 访问
+- API文档地址为 `http://your-domain.com/travenion/api-docs`
+- 可以在同一域名下部署多个应用，每个应用使用不同的子路径
+- 注意 `proxy_pass` 末尾的 `/` 很重要，它会去掉 `/travenion` 前缀再转发给后端应用
 
 #### 启用站点配置
 ```bash
