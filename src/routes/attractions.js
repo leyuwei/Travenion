@@ -1,5 +1,5 @@
 const express = require('express');
-const { Attraction, PlanDay, TravelPlan, sequelize } = require('../models');
+const { Attraction, PlanDay, TravelPlan, PlanShare, sequelize } = require('../models');
 const auth = require('../middleware/auth');
 const axios = require('axios');
 
@@ -10,13 +10,29 @@ router.use(auth);
 // 获取某天的所有景点
 router.get('/day/:dayId', async (req, res) => {
   try {
-    const day = await PlanDay.findOne({
+    // 首先检查是否是计划所有者
+    let day = await PlanDay.findOne({
       where: { id: req.params.dayId },
       include: [{
         model: TravelPlan,
         where: { userId: req.user.id }
       }]
     });
+    
+    // 如果不是所有者，检查是否有分享权限
+    if (!day) {
+      day = await PlanDay.findOne({
+        where: { id: req.params.dayId },
+        include: [{
+          model: TravelPlan,
+          include: [{
+            model: PlanShare,
+            as: 'shares',
+            where: { sharedWithUserId: req.user.id }
+          }]
+        }]
+      });
+    }
     
     if (!day) {
       return res.status(404).json({ message: '未找到行程日' });

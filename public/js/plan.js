@@ -198,6 +198,7 @@ function previewFile(fileId) {
   
   const ext = file.filename.split('.').pop().toLowerCase();
   const fileUrl = `/travenion/api/plans/${planId}/files/${fileId}`;
+  const token = localStorage.getItem('token');
   
   // 创建预览模态框
   const modal = document.createElement('div');
@@ -227,22 +228,52 @@ function previewFile(fileId) {
   
   if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
     // 图片预览
-    previewContent.innerHTML = `
-      <img src="${fileUrl}" alt="${file.filename}" 
-           style="max-width: 100%; max-height: 60vh; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
-    `;
+    fetch(fileUrl, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(response => response.blob())
+    .then(blob => {
+      const blobUrl = URL.createObjectURL(blob);
+      previewContent.innerHTML = `
+        <img src="${blobUrl}" alt="${file.filename}" 
+             style="max-width: 100%; max-height: 60vh; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+      `;
+    })
+    .catch(error => {
+      previewContent.innerHTML = `
+        <div style="color: #dc3545; padding: 20px;">
+          无法加载图片。<a href="${fileUrl}" target="_blank">点击这里下载文件</a>
+        </div>
+      `;
+    });
   } else if (ext === 'pdf') {
     // PDF预览
-    previewContent.innerHTML = `
-      <iframe src="${fileUrl}" 
-              style="width: 100%; height: 60vh; border: none; border-radius: 8px;" 
-              title="PDF预览">
-        <p>您的浏览器不支持PDF预览。<a href="${fileUrl}" target="_blank">点击这里下载文件</a></p>
-      </iframe>
-    `;
+    fetch(fileUrl, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(response => response.blob())
+    .then(blob => {
+      const blobUrl = URL.createObjectURL(blob);
+      previewContent.innerHTML = `
+        <iframe src="${blobUrl}" 
+                style="width: 100%; height: 60vh; border: none; border-radius: 8px;" 
+                title="PDF预览">
+          <p>您的浏览器不支持PDF预览。<a href="${fileUrl}" target="_blank">点击这里下载文件</a></p>
+        </iframe>
+      `;
+    })
+    .catch(error => {
+      previewContent.innerHTML = `
+        <div style="color: #dc3545; padding: 20px;">
+          无法加载PDF文件。<a href="${fileUrl}" target="_blank">点击这里下载文件</a>
+        </div>
+      `;
+    });
   } else if (['txt', 'md', 'html', 'htm'].includes(ext)) {
     // 文本文件预览
-    fetch(fileUrl)
+    fetch(fileUrl, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
       .then(response => response.text())
       .then(text => {
         if (ext === 'md') {
@@ -1214,11 +1245,11 @@ async function loadSharedUsers() {
         container.innerHTML = shares.map(share => `
           <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 8px; background: #f9fafb;">
             <div>
-              <span style="font-weight: 500; color: #1f2937;">${share.User.username}</span>
-              <small style="color: #6b7280; margin-left: 8px;">${share.User.email}</small>
+              <span style="font-weight: 500; color: #1f2937;">${share.sharedWithUser.username}</span>
+              <small style="color: #6b7280; margin-left: 8px;">${share.sharedWithUser.email}</small>
               <span style="color: #059669; margin-left: 8px; font-size: 12px;">${share.permission}</span>
             </div>
-            <button class="btn btn-sm btn-outline-danger" onclick="removeShare('${share.User.username}')">
+            <button class="btn btn-sm btn-outline-danger" onclick="removeShare('${share.sharedWithUser.username}')">
               <i class="fas fa-times"></i> 移除
             </button>
           </div>

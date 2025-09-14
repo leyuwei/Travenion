@@ -188,7 +188,7 @@ function renderSharedPlans() {
   
   sharedPlans.forEach(shareInfo => {
     const plan = shareInfo.plan;
-    const sharedBy = shareInfo.sharedBy;
+    const sharedBy = shareInfo.sharedByUser;
     const permission = shareInfo.permission;
     
     const planCard = document.createElement('div');
@@ -225,8 +225,7 @@ function renderSharedPlans() {
         
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
           <div style="display: flex; gap: 10px;">
-            <span class="badge badge-secondary">${plan.defaultMap === 'openstreetmap' ? 'OpenStreetMap' : '百度地图'}</span>
-            <span class="badge badge-outline-success">分享计划</span>
+            <!-- 隐藏地图模式和分享计划标识 -->
           </div>
           <span style="font-size: 12px; color: #9ca3af;">分享于 ${formatDate(shareInfo.sharedAt)}</span>
         </div>

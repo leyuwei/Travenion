@@ -77,6 +77,28 @@ body {
   transform: translateY(-2px);
 }
 
+/* 功能卡片特殊样式 */
+.card.fade-in:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+}
+
+/* Hero section 样式 */
+.hero-section {
+  animation: fadeInUp 0.8s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .card-header {
   border-bottom: 1px solid var(--border-color);
   padding-bottom: 15px;
@@ -98,6 +120,25 @@ body {
   padding: 10px 20px;
   border: none;
   border-radius: var(--border-radius);
+  text-decoration: none;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.btn-link {
+  background: none;
+  color: var(--primary-color);
+  border: none;
+  padding: 0;
+  font-size: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.btn-link:hover {
+  color: var(--primary-hover);
+  text-decoration: none;
   font-weight: 500;
   text-decoration: none;
   cursor: pointer;
@@ -738,6 +779,8 @@ body {
   height: 100%;
   background: rgba(0, 0, 0, 0.5);
   display: none;
+  align-items: center;
+  justify-content: center;
   z-index: 1000;
   backdrop-filter: blur(4px);
 }

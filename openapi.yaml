@@ -1,54 +1,148 @@
 openapi: 3.0.3
 info:
   title: Travenion API
-  version: 1.0.0
+  description: 旅游计划管理系统API文档
+  version: 2.0.0
+  contact:
+    name: Travenion Team
+    email: support@travenion.com
 servers:
   - url: /travenion/api
+    description: 生产环境
 paths:
   /auth/register:
     post:
       summary: 用户注册
+      description: 创建新用户账户
+      tags:
+        - 认证
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              required:
+                - username
+                - email
+                - password
               properties:
                 username:
                   type: string
+                  description: 用户名
+                  example: "john_doe"
+                email:
+                  type: string
+                  format: email
+                  description: 邮箱地址
+                  example: "john@example.com"
                 password:
                   type: string
+                  description: 密码
+                  minLength: 6
+                  example: "password123"
       responses:
         '201':
           description: 注册成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    description: 用户ID
+                  username:
+                    type: string
+                    description: 用户名
+                  email:
+                    type: string
+                    description: 邮箱地址
+        '400':
+          description: 请求参数错误
+        '500':
+          description: 注册失败
   /auth/login:
     post:
       summary: 用户登录
+      description: 用户身份验证
+      tags:
+        - 认证
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              required:
+                - username
+                - password
               properties:
                 username:
                   type: string
+                  description: 用户名
+                  example: "john_doe"
                 password:
                   type: string
+                  description: 密码
+                  example: "password123"
       responses:
         '200':
           description: 登录成功，返回JWT
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: JWT访问令牌
+                    example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        '401':
+          description: 用户名或密码错误
+  /auth/me:
+    get:
+      summary: 获取当前用户信息
+      description: 获取已登录用户的详细信息
+      tags:
+        - 认证
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 成功获取用户信息
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: 未授权
+        '404':
+          description: 用户不存在
   /plans:
     get:
       summary: 获取用户的旅游计划列表
+      description: 获取当前用户创建的所有旅游计划
+      tags:
+        - 旅游计划
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: 成功
+          description: 成功获取计划列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TravelPlan'
+        '401':
+          description: 未授权
     post:
       summary: 创建旅游计划
+      description: 创建新的旅游计划
+      tags:
+        - 旅游计划
       security:
         - bearerAuth: []
       requestBody:
@@ -57,20 +151,81 @@ paths:
           application/json:
             schema:
               type: object
+              required:
+                - title
               properties:
                 title:
                   type: string
+                  description: 计划标题
+                  example: "日本关西7日游"
                 description:
                   type: string
+                  description: 计划描述
+                  example: "探索京都、大阪、奈良的文化之旅"
                 defaultMap:
                   type: string
                   enum: [openstreetmap, baidu]
+                  description: 默认地图提供商
+                  example: "openstreetmap"
       responses:
         '201':
-          description: 已创建
+          description: 计划创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TravelPlan'
+        '401':
+          description: 未授权
+        '500':
+          description: 创建失败
+  /plans/users:
+    get:
+      summary: 获取用户列表
+      description: 获取可分享计划的用户列表（排除当前用户）
+      tags:
+        - 旅游计划
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 成功获取用户列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '401':
+          description: 未授权
+        '500':
+          description: 获取用户列表失败
+  /plans/shared-with-me:
+    get:
+      summary: 获取分享给我的计划
+      description: 获取其他用户分享给当前用户的旅游计划
+      tags:
+        - 旅游计划
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 成功获取分享计划列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PlanShare'
+        '401':
+          description: 未授权
+        '500':
+          description: 获取分享计划失败
   /plans/{id}:
     get:
       summary: 获取旅游计划详情
+      description: 获取指定旅游计划的详细信息（包括行程和文件）
+      tags:
+        - 旅游计划
       security:
         - bearerAuth: []
       parameters:
@@ -79,11 +234,26 @@ paths:
           required: true
           schema:
             type: integer
+          description: 计划ID
+          example: 1
       responses:
         '200':
-          description: 成功
+          description: 成功获取计划详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TravelPlan'
+        '401':
+          description: 未授权
+        '404':
+          description: 计划未找到
+        '500':
+          description: 获取计划失败
     put:
       summary: 更新旅游计划
+      description: 更新指定旅游计划的基本信息
+      tags:
+        - 旅游计划
       security:
         - bearerAuth: []
       parameters:
@@ -92,6 +262,8 @@ paths:
           required: true
           schema:
             type: integer
+          description: 计划ID
+          example: 1
       requestBody:
         required: true
         content:
@@ -101,16 +273,35 @@ paths:
               properties:
                 title:
                   type: string
+                  description: 计划标题
+                  example: "日本关西7日游（更新版）"
                 description:
                   type: string
+                  description: 计划描述
+                  example: "探索京都、大阪、奈良的文化之旅"
                 defaultMap:
                   type: string
                   enum: [openstreetmap, baidu]
+                  description: 默认地图提供商
+                  example: "baidu"
       responses:
         '200':
-          description: 已更新
+          description: 计划更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TravelPlan'
+        '401':
+          description: 未授权
+        '404':
+          description: 计划未找到
+        '500':
+          description: 更新失败
     delete:
       summary: 删除旅游计划
+      description: 删除指定的旅游计划及其所有相关数据
+      tags:
+        - 旅游计划
       security:
         - bearerAuth: []
       parameters:
@@ -119,12 +310,23 @@ paths:
           required: true
           schema:
             type: integer
+          description: 计划ID
+          example: 1
       responses:
         '204':
-          description: 已删除
+          description: 计划删除成功
+        '401':
+          description: 未授权
+        '404':
+          description: 计划未找到
+        '500':
+          description: 删除失败
   /plans/{id}/share:
     post:
-      summary: 分享旅游计划给其它用户
+      summary: 分享旅游计划给其他用户
+      description: 将指定的旅游计划分享给其他用户
+      tags:
+        - 计划分享
       security:
         - bearerAuth: []
       parameters:
@@ -133,21 +335,45 @@ paths:
           required: true
           schema:
             type: integer
+          description: 计划ID
+          example: 1
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              required:
+                - username
               properties:
-                userId:
-                  type: integer
+                username:
+                  type: string
+                  description: 被分享用户的用户名
+                  example: "jane_doe"
       responses:
         '200':
-          description: 已分享
-  /plans/{id}/days:
-    post:
-      summary: 添加行程日程
+          description: 分享成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "分享成功"
+        '401':
+          description: 未授权
+        '404':
+          description: 计划或用户未找到
+        '409':
+          description: 已经分享给该用户
+        '500':
+          description: 分享失败
+    delete:
+      summary: 取消分享旅游计划
+      description: 取消向指定用户分享的旅游计划
+      tags:
+        - 计划分享
       security:
         - bearerAuth: []
       parameters:
@@ -156,27 +382,129 @@ paths:
           required: true
           schema:
             type: integer
+          description: 计划ID
+          example: 1
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              required:
+                - username
+              properties:
+                username:
+                  type: string
+                  description: 取消分享的用户名
+                  example: "jane_doe"
+      responses:
+        '200':
+          description: 取消分享成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "取消分享成功"
+        '401':
+          description: 未授权
+        '404':
+          description: 分享记录不存在
+        '500':
+          description: 取消分享失败
+  /plans/{id}/days:
+    get:
+      summary: 获取计划的行程日程列表
+      description: 获取指定旅游计划的所有行程日程
+      tags:
+        - 行程日程
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: 计划ID
+          example: 1
+      responses:
+        '200':
+          description: 成功获取行程日程列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PlanDay'
+        '401':
+          description: 未授权
+        '404':
+          description: 计划未找到
+        '500':
+          description: 获取行程日程失败
+    post:
+      summary: 添加行程日程
+      description: 为指定旅游计划添加新的行程日程
+      tags:
+        - 行程日程
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: 计划ID
+          example: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - dayIndex
+                - city
               properties:
                 dayIndex:
                   type: integer
+                  description: 行程日序号
+                  example: 1
                 city:
                   type: string
+                  description: 城市名称
+                  example: "京都"
                 transportation:
                   type: string
+                  description: 交通方式
+                  example: "地铁"
                 attractions:
                   type: string
+                  description: 景点列表
+                  example: "清水寺,金阁寺,伏见稻荷大社"
       responses:
         '201':
-          description: 已添加
+          description: 行程日程添加成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanDay'
+        '401':
+          description: 未授权
+        '404':
+          description: 计划未找到
+        '500':
+          description: 添加失败
   /plans/{id}/days/{dayId}:
     put:
       summary: 更新行程日程
+      description: 更新指定的行程日程信息
+      tags:
+        - 行程日程
       security:
         - bearerAuth: []
       parameters:
@@ -185,11 +513,15 @@ paths:
           required: true
           schema:
             type: integer
+          description: 计划ID
+          example: 1
         - in: path
           name: dayId
           required: true
           schema:
             type: integer
+          description: 行程日ID
+          example: 1
       requestBody:
         required: true
         content:
@@ -197,19 +529,36 @@ paths:
             schema:
               type: object
               properties:
-                dayIndex:
-                  type: integer
                 city:
                   type: string
+                  description: 城市名称
+                  example: "大阪"
                 transportation:
                   type: string
+                  description: 交通方式
+                  example: "JR线"
                 attractions:
                   type: string
+                  description: 景点列表
+                  example: "大阪城,道顿堀,心斋桥"
       responses:
         '200':
-          description: 已更新
+          description: 行程日程更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanDay'
+        '401':
+          description: 未授权
+        '404':
+          description: 行程日程未找到
+        '500':
+          description: 更新失败
     delete:
       summary: 删除行程日程
+      description: 删除指定的行程日程
+      tags:
+        - 行程日程
       security:
         - bearerAuth: []
       parameters:
@@ -218,17 +567,38 @@ paths:
           required: true
           schema:
             type: integer
+          description: 计划ID
+          example: 1
         - in: path
           name: dayId
           required: true
           schema:
             type: integer
+          description: 行程日ID
+          example: 1
       responses:
-        '204':
-          description: 已删除
+        '200':
+          description: 行程日程删除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "行程日程删除成功"
+        '401':
+          description: 未授权
+        '404':
+          description: 行程日程未找到
+        '500':
+          description: 删除失败
   /plans/{id}/files:
-    post:
-      summary: 上传文件
+    get:
+      summary: 获取旅游计划的文件列表
+      description: 获取指定旅游计划的所有上传文件
+      tags:
+        - 文件管理
       security:
         - bearerAuth: []
       parameters:
@@ -237,22 +607,692 @@ paths:
           required: true
           schema:
             type: integer
+          description: 计划ID
+          example: 1
+      responses:
+        '200':
+          description: 成功获取文件列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PlanFile'
+        '401':
+          description: 未授权
+        '404':
+          description: 计划未找到
+        '500':
+          description: 获取文件列表失败
+    post:
+      summary: 上传文件到旅游计划
+      description: 为指定旅游计划上传文件
+      tags:
+        - 文件管理
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: 计划ID
+          example: 1
       requestBody:
         required: true
         content:
           multipart/form-data:
             schema:
               type: object
+              required:
+                - file
               properties:
                 file:
                   type: string
                   format: binary
+                  description: 要上传的文件
       responses:
         '201':
-          description: 已上传
+          description: 文件上传成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanFile'
+        '401':
+          description: 未授权
+        '404':
+          description: 计划未找到
+        '413':
+          description: 文件过大
+        '500':
+          description: 上传失败
+  /plans/{id}/files/{fileId}:
+    delete:
+      summary: 删除文件
+      description: 删除指定的计划文件
+      tags:
+        - 文件管理
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: 计划ID
+          example: 1
+        - in: path
+          name: fileId
+          required: true
+          schema:
+            type: integer
+          description: 文件ID
+          example: 1
+      responses:
+        '200':
+          description: 文件删除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "文件删除成功"
+        '401':
+          description: 未授权
+        '404':
+          description: 文件未找到
+        '500':
+          description: 删除失败
+  /attractions/search:
+    get:
+      summary: 搜索景点
+      description: 根据关键词搜索景点信息
+      tags:
+        - 景点管理
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: keyword
+          required: true
+          schema:
+            type: string
+          description: 搜索关键词
+          example: "京都寺庙"
+        - in: query
+          name: city
+          schema:
+            type: string
+          description: 城市名称（可选）
+          example: "京都"
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 50
+          description: 返回结果数量限制
+          example: 10
+      responses:
+        '200':
+          description: 搜索成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Attraction'
+        '401':
+          description: 未授权
+        '400':
+          description: 请求参数错误
+        '500':
+          description: 搜索失败
+  /plans/{id}/days/{dayId}/attractions:
+     get:
+       summary: 获取某天的景点列表
+       description: 获取指定行程日的所有景点
+       tags:
+         - 景点管理
+       security:
+         - bearerAuth: []
+       parameters:
+         - in: path
+           name: id
+           required: true
+           schema:
+             type: integer
+           description: 计划ID
+           example: 1
+         - in: path
+           name: dayId
+           required: true
+           schema:
+             type: integer
+           description: 行程日ID
+           example: 1
+       responses:
+         '200':
+           description: 成功获取景点列表
+           content:
+             application/json:
+               schema:
+                 type: array
+                 items:
+                   $ref: '#/components/schemas/DayAttraction'
+         '401':
+           description: 未授权
+         '404':
+           description: 行程日未找到
+         '500':
+           description: 获取景点列表失败
+     post:
+       summary: 添加景点到某天
+       description: 为指定行程日添加新景点
+       tags:
+         - 景点管理
+       security:
+         - bearerAuth: []
+       parameters:
+         - in: path
+           name: id
+           required: true
+           schema:
+             type: integer
+           description: 计划ID
+           example: 1
+         - in: path
+           name: dayId
+           required: true
+           schema:
+             type: integer
+           description: 行程日ID
+           example: 1
+       requestBody:
+         required: true
+         content:
+           application/json:
+             schema:
+               type: object
+               required:
+                 - name
+                 - address
+               properties:
+                 name:
+                   type: string
+                   description: 景点名称
+                   example: "清水寺"
+                 address:
+                   type: string
+                   description: 景点地址
+                   example: "京都市东山区清水1丁目294"
+                 description:
+                   type: string
+                   description: 景点描述
+                   example: "京都著名的佛教寺庙"
+                 visitOrder:
+                   type: integer
+                   description: 访问顺序
+                   example: 1
+       responses:
+         '201':
+           description: 景点添加成功
+           content:
+             application/json:
+               schema:
+                 $ref: '#/components/schemas/DayAttraction'
+         '401':
+           description: 未授权
+         '404':
+           description: 行程日未找到
+         '500':
+           description: 添加失败
+  /plans/{id}/days/{dayId}/attractions/{attractionId}:
+     put:
+       summary: 更新景点信息
+       description: 更新指定景点的信息
+       tags:
+         - 景点管理
+       security:
+         - bearerAuth: []
+       parameters:
+         - in: path
+           name: id
+           required: true
+           schema:
+             type: integer
+           description: 计划ID
+           example: 1
+         - in: path
+           name: dayId
+           required: true
+           schema:
+             type: integer
+           description: 行程日ID
+           example: 1
+         - in: path
+           name: attractionId
+           required: true
+           schema:
+             type: integer
+           description: 景点ID
+           example: 1
+       requestBody:
+         required: true
+         content:
+           application/json:
+             schema:
+               type: object
+               properties:
+                 name:
+                   type: string
+                   description: 景点名称
+                   example: "清水寺"
+                 address:
+                   type: string
+                   description: 景点地址
+                   example: "京都市东山区清水1丁目294"
+                 description:
+                   type: string
+                   description: 景点描述
+                   example: "京都著名的佛教寺庙"
+                 visitOrder:
+                   type: integer
+                   description: 访问顺序
+                   example: 1
+       responses:
+         '200':
+           description: 景点更新成功
+           content:
+             application/json:
+               schema:
+                 $ref: '#/components/schemas/DayAttraction'
+         '401':
+           description: 未授权
+         '404':
+           description: 景点未找到
+         '500':
+           description: 更新失败
+     delete:
+       summary: 删除景点
+       description: 删除指定的景点
+       tags:
+         - 景点管理
+       security:
+         - bearerAuth: []
+       parameters:
+         - in: path
+           name: id
+           required: true
+           schema:
+             type: integer
+           description: 计划ID
+           example: 1
+         - in: path
+           name: dayId
+           required: true
+           schema:
+             type: integer
+           description: 行程日ID
+           example: 1
+         - in: path
+           name: attractionId
+           required: true
+           schema:
+             type: integer
+           description: 景点ID
+           example: 1
+       responses:
+         '200':
+           description: 景点删除成功
+           content:
+             application/json:
+               schema:
+                 type: object
+                 properties:
+                   message:
+                     type: string
+                     example: "景点删除成功"
+         '401':
+           description: 未授权
+         '404':
+           description: 景点未找到
+         '500':
+           description: 删除失败
+  /plans/{id}/days/{dayId}/attractions/reorder:
+     put:
+       summary: 更新景点访问顺序
+       description: 批量更新指定行程日的景点访问顺序
+       tags:
+         - 景点管理
+       security:
+         - bearerAuth: []
+       parameters:
+         - in: path
+           name: id
+           required: true
+           schema:
+             type: integer
+           description: 计划ID
+           example: 1
+         - in: path
+           name: dayId
+           required: true
+           schema:
+             type: integer
+           description: 行程日ID
+           example: 1
+       requestBody:
+         required: true
+         content:
+           application/json:
+             schema:
+               type: object
+               required:
+                 - attractions
+               properties:
+                 attractions:
+                   type: array
+                   items:
+                     type: object
+                     required:
+                       - id
+                       - visitOrder
+                     properties:
+                       id:
+                         type: integer
+                         description: 景点ID
+                         example: 1
+                       visitOrder:
+                         type: integer
+                         description: 新的访问顺序
+                         example: 2
+                   description: 景点顺序列表
+       responses:
+         '200':
+           description: 顺序更新成功
+           content:
+             application/json:
+               schema:
+                 type: object
+                 properties:
+                   message:
+                     type: string
+                     example: "景点顺序更新成功"
+         '401':
+           description: 未授权
+         '404':
+           description: 行程日未找到
+         '500':
+           description: 更新失败
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: 用户ID
+          example: 1
+        username:
+          type: string
+          description: 用户名
+          example: "john_doe"
+        email:
+          type: string
+          format: email
+          description: 邮箱地址
+          example: "john@example.com"
+        createdAt:
+          type: string
+          format: date-time
+          description: 创建时间
+          example: "2024-01-01T00:00:00Z"
+    TravelPlan:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: 计划ID
+          example: 1
+        title:
+          type: string
+          description: 计划标题
+          example: "日本关西7日游"
+        description:
+          type: string
+          description: 计划描述
+          example: "探索京都、大阪、奈良的文化之旅"
+        defaultMap:
+          type: string
+          enum: [openstreetmap, baidu]
+          description: 默认地图提供商
+          example: "openstreetmap"
+        userId:
+          type: integer
+          description: 创建者用户ID
+          example: 1
+        createdAt:
+          type: string
+          format: date-time
+          description: 创建时间
+          example: "2024-01-01T00:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: 更新时间
+          example: "2024-01-01T00:00:00Z"
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanDay'
+          description: 行程日程列表
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanFile'
+          description: 文件列表
+    PlanDay:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: 行程日ID
+          example: 1
+        planId:
+          type: integer
+          description: 所属计划ID
+          example: 1
+        dayIndex:
+          type: integer
+          description: 行程日序号
+          example: 1
+        city:
+          type: string
+          description: 城市名称
+          example: "京都"
+        transportation:
+          type: string
+          description: 交通方式
+          example: "地铁"
+        attractions:
+          type: string
+          description: 景点列表
+          example: "清水寺,金阁寺,伏见稻荷大社"
+        createdAt:
+          type: string
+          format: date-time
+          description: 创建时间
+          example: "2024-01-01T00:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: 更新时间
+          example: "2024-01-01T00:00:00Z"
+    PlanFile:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: 文件ID
+          example: 1
+        planId:
+          type: integer
+          description: 所属计划ID
+          example: 1
+        filename:
+          type: string
+          description: 文件名
+          example: "travel_itinerary.pdf"
+        originalName:
+          type: string
+          description: 原始文件名
+          example: "我的旅行计划.pdf"
+        fileSize:
+          type: integer
+          description: 文件大小（字节）
+          example: 1024000
+        mimeType:
+          type: string
+          description: 文件MIME类型
+          example: "application/pdf"
+        uploadedAt:
+          type: string
+          format: date-time
+          description: 上传时间
+          example: "2024-01-01T00:00:00Z"
+    PlanShare:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: 分享记录ID
+          example: 1
+        planId:
+          type: integer
+          description: 计划ID
+          example: 1
+        plan:
+          $ref: '#/components/schemas/TravelPlan'
+          description: 计划详情
+        sharedBy:
+          type: integer
+          description: 分享者用户ID
+          example: 1
+        sharedByUser:
+          $ref: '#/components/schemas/User'
+          description: 分享者信息
+        sharedWith:
+          type: integer
+          description: 被分享者用户ID
+          example: 2
+        sharedAt:
+          type: string
+          format: date-time
+          description: 分享时间
+          example: "2024-01-01T00:00:00Z"
+    Attraction:
+      type: object
+      properties:
+        id:
+          type: string
+          description: 景点ID
+          example: "kyoto_kiyomizu_temple"
+        name:
+          type: string
+          description: 景点名称
+          example: "清水寺"
+        description:
+          type: string
+          description: 景点描述
+          example: "京都著名的佛教寺庙，以其木制舞台而闻名"
+        city:
+          type: string
+          description: 所在城市
+          example: "京都"
+        address:
+          type: string
+          description: 地址
+          example: "京都市东山区清水1丁目294"
+        latitude:
+          type: number
+          format: float
+          description: 纬度
+          example: 34.9949
+        longitude:
+          type: number
+          format: float
+          description: 经度
+          example: 135.7851
+        category:
+          type: string
+          description: 景点类别
+          example: "寺庙"
+        rating:
+          type: number
+          format: float
+          description: 评分
+          example: 4.5
+        tags:
+          type: array
+          items:
+            type: string
+          description: 标签
+          example: ["历史", "文化", "建筑"]
+    DayAttraction:
+       type: object
+       properties:
+         id:
+           type: integer
+           description: 景点记录ID
+           example: 1
+         dayId:
+           type: integer
+           description: 所属行程日ID
+           example: 1
+         name:
+           type: string
+           description: 景点名称
+           example: "清水寺"
+         address:
+           type: string
+           description: 景点地址
+           example: "京都市东山区清水1丁目294"
+         description:
+           type: string
+           description: 景点描述
+           example: "京都著名的佛教寺庙，以其木制舞台而闻名"
+         latitude:
+           type: number
+           format: float
+           description: 纬度
+           example: 34.9949
+         longitude:
+           type: number
+           format: float
+           description: 经度
+           example: 135.7851
+         visitOrder:
+           type: integer
+           description: 访问顺序
+           example: 1
+         createdAt:
+           type: string
+           format: date-time
+           description: 创建时间
+           example: "2024-01-01T00:00:00Z"
+         updatedAt:
+           type: string
+           format: date-time
+           description: 更新时间
+           example: "2024-01-01T00:00:00Z"

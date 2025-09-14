@@ -1,5 +1,7 @@
 const express = require('express');
 const path = require('path');
+const swaggerUi = require('swagger-ui-express');
+const YAML = require('yamljs');
 const db = require('./models');
 const config = require('./config');
 
@@ -7,12 +9,21 @@ const authRoutes = require('./routes/auth');
 const planRoutes = require('./routes/plans');
 const attractionRoutes = require('./routes/attractions');
 
+// 加载OpenAPI文档
+const swaggerDocument = YAML.load(path.join(__dirname, '..', 'openapi.yaml'));
+
 const app = express();
 app.use(express.json());
 app.use('/travenion', express.static(path.join(__dirname, '..', 'public')));
 
+// Swagger UI 路由
+app.use('/travenion/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'Travenion API 文档',
+  customfavIcon: '/travenion/logo.svg'
+}));
 
-
+// API 路由
 app.use('/travenion/api/auth', authRoutes);
 app.use('/travenion/api/plans', planRoutes);
 app.use('/travenion/api/attractions', attractionRoutes);
