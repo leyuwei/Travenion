@@ -87,17 +87,34 @@ function showNotification(message, type = 'info') {
   const container = document.getElementById('notification-container');
   const notification = document.createElement('div');
   notification.className = `notification ${type}`;
-  notification.innerHTML = `
-    <span>${message}</span>
-    <button onclick="this.parentElement.remove()">&times;</button>
-  `;
+  
+  // 对于警告类型的长消息，使用特殊样式
+  if (type === 'warning' && message.length > 100) {
+    notification.innerHTML = `
+      <div style="max-height: 200px; overflow-y: auto; white-space: pre-line; font-family: monospace; font-size: 12px; line-height: 1.4; padding-right: 20px;">${message}</div>
+      <button onclick="this.parentElement.remove()" style="position: absolute; top: 5px; right: 5px; background: none; border: none; color: inherit; font-size: 18px; cursor: pointer;">&times;</button>
+    `;
+    notification.style.position = 'relative';
+    notification.style.maxWidth = '500px';
+    notification.style.padding = '15px';
+  } else {
+    notification.innerHTML = `
+      <span>${message}</span>
+      <button onclick="this.parentElement.remove()">&times;</button>
+    `;
+  }
+  
   container.appendChild(notification);
   
-  setTimeout(() => {
-    if (notification.parentElement) {
-      notification.remove();
-    }
-  }, 5000);
+  // 警告类型的通知延长显示时间
+  const timeout = type === 'warning' ? 15000 : (type === 'error' ? 0 : 5000);
+  if (timeout > 0) {
+    setTimeout(() => {
+      if (notification.parentElement) {
+        notification.remove();
+      }
+    }, timeout);
+  }
 }
 
 // 加载状态设置
@@ -179,6 +196,30 @@ function detectCountry(address) {
     if (pattern.test(address)) return region;
   }
   return '';
+}
+
+// 检测地址是否为经纬度格式
+function isCoordinateFormat(address) {
+  if (!address || typeof address !== 'string') return null;
+  
+  // 移除空格并检查格式
+  const cleaned = address.trim();
+  
+  // 匹配经纬度格式：数字,数字 或 数字, 数字
+  const coordPattern = /^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/;
+  const match = cleaned.match(coordPattern);
+  
+  if (match) {
+    const lat = parseFloat(match[1]);
+    const lng = parseFloat(match[2]);
+    
+    // 验证经纬度范围
+    if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+      return { lat, lng };
+    }
+  }
+  
+  return null;
 }
 
 // 检查文件是否可以预览
@@ -730,69 +771,232 @@ async function addMapMarkers() {
   clearMapMarkers();
 
   if (mapProvider === 'openstreetmap' && typeof L !== 'undefined') {
+    console.log('开始处理OpenStreetMap景点标记');
+    
+    // 清除现有的所有标记和路线
+    map.eachLayer(function(layer) {
+      if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+        map.removeLayer(layer);
+      }
+    });
+    
     const bounds = L.latLngBounds();
-    const sortedDays = [...days].sort((a, b) => a.day_index - b.day_index);
-
+    const sortedDays = [...days].sort((a, b) => a.dayIndex - b.dayIndex);
+    
+    // 收集所有景点数据
+    const allAttractions = [];
+    let globalIndex = 1;
+    
     for (const day of sortedDays) {
       let dayAttractions = [];
       try {
         const resp = await fetch(`/travenion/api/attractions/day/${day.id}`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
-        if (resp.ok) dayAttractions = await resp.json();
+        if (resp.ok) {
+          dayAttractions = await resp.json();
+        }
       } catch (err) {
         console.error('获取景点数据失败:', err);
+        continue;
       }
 
+      // 按访问顺序排序当天景点
       dayAttractions.sort((a, b) => (a.visitOrder || 0) - (b.visitOrder || 0));
-
-      const path = [];
-      for (let i = 0; i < dayAttractions.length; i++) {
-        const attraction = dayAttractions[i];
-
-        if ((!attraction.latitude || !attraction.longitude) && attraction.address) {
-          try {
-            const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(attraction.address + ', ' + day.city)}`);
-            const data = await resp.json();
-            if (data[0]) {
-              attraction.latitude = parseFloat(data[0].lat);
-              attraction.longitude = parseFloat(data[0].lon);
+      
+      // 为每个景点添加全局信息
+      dayAttractions.forEach(attraction => {
+        allAttractions.push({
+          ...attraction,
+          dayIndex: day.dayIndex,
+          dayCity: day.city,
+          globalOrder: globalIndex++
+        });
+      });
+    }
+    
+    console.log(`收集到 ${allAttractions.length} 个景点`);
+    
+    // 处理每个景点的坐标和标记
+    const validAttractions = [];
+    const pathCoordinates = [];
+    const failedAttractions = []; // 收集无法定位的景点
+    
+    for (let i = 0; i < allAttractions.length; i++) {
+      const attraction = allAttractions[i];
+      let lat = parseFloat(attraction.latitude);
+      let lng = parseFloat(attraction.longitude);
+      
+      // 如果没有有效坐标，尝试解析地址
+      let geocodingFailed = false;
+      if (isNaN(lat) || isNaN(lng)) {
+        if (attraction.address && attraction.address.trim()) {
+          // 首先检查地址是否为经纬度格式
+          const coordinates = isCoordinateFormat(attraction.address);
+          if (coordinates) {
+            lat = coordinates.lat;
+            lng = coordinates.lng;
+            console.log(`检测到经纬度格式: ${attraction.name} -> ${lat}, ${lng}`);
+          } else {
+            // 如果不是经纬度格式，进行地理编码
+            try {
+              console.log(`正在地理编码: ${attraction.name}`);
+              
+              // 增加延迟以避免API限制
+              if (i > 0) {
+                await new Promise(resolve => setTimeout(resolve, 800));
+              }
+              
+              const searchQuery = `${attraction.address}, ${attraction.dayCity}`;
+              const response = await fetch(
+                `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&addressdetails=1`,
+                {
+                  headers: {
+                    'User-Agent': 'Travenion/1.0 (travel planning application)'
+                  },
+                  timeout: 10000
+                }
+              );
+              
+              if (response.ok) {
+                const data = await response.json();
+                if (data && data.length > 0 && data[0].lat && data[0].lon) {
+                  lat = parseFloat(data[0].lat);
+                  lng = parseFloat(data[0].lon);
+                  console.log(`地理编码成功: ${attraction.name} -> ${lat}, ${lng}`);
+                } else {
+                  console.warn(`地理编码无结果: ${attraction.name}`);
+                  geocodingFailed = true;
+                }
+              } else {
+                console.warn(`地理编码请求失败: ${attraction.name}, 状态: ${response.status}`);
+                geocodingFailed = true;
+              }
+            } catch (error) {
+              console.warn(`地理编码异常: ${attraction.name}`, error.message);
+              geocodingFailed = true;
             }
-          } catch (e) {
-            console.error('地理编码失败:', e);
           }
-        }
-
-        if (attraction.latitude && attraction.longitude) {
-          const marker = L.marker([attraction.latitude, attraction.longitude]).addTo(map);
-          marker.bindPopup(`
-            <div style="padding: 10px; max-width: 250px;">
-              <h5 style="margin: 0 0 8px 0; color: #1f2937;">${attraction.name}</h5>
-              ${attraction.address ? `<div style="margin-bottom: 6px; font-size: 13px;">📍 ${attraction.address}</div>` : ''}
-              ${attraction.description ? `<div style="font-size: 13px;">📝 ${attraction.description}</div>` : ''}
-            </div>`);
-
-          markers.push(marker);
-          path.push([attraction.latitude, attraction.longitude]);
-          bounds.extend([attraction.latitude, attraction.longitude]);
+        } else {
+          geocodingFailed = true;
         }
       }
-
-      if (path.length > 1) {
-        const polyline = L.polyline(path, { color: '#f59e0b', weight: 2 }).addTo(map);
-        polylines.push(polyline);
+      
+      // 如果有有效坐标，创建标记
+      if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+        // 创建自定义标记图标
+        const markerIcon = L.divIcon({
+          className: 'osm-attraction-marker',
+          html: `
+            <div style="
+              background: linear-gradient(135deg, #007bff, #0056b3);
+              color: white;
+              border-radius: 50%;
+              width: 32px;
+              height: 32px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-weight: bold;
+              font-size: 14px;
+              border: 3px solid white;
+              box-shadow: 0 3px 6px rgba(0,0,0,0.4);
+              cursor: pointer;
+            ">${attraction.globalOrder}</div>
+          `,
+          iconSize: [32, 32],
+          iconAnchor: [16, 16],
+          popupAnchor: [0, -16]
+        });
+        
+        // 创建并添加标记
+        const marker = L.marker([lat, lng], { icon: markerIcon });
+        
+        // 创建弹出窗口内容
+        const popupContent = `
+          <div style="min-width: 220px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+            <div style="background: linear-gradient(135deg, #007bff, #0056b3); color: white; margin: -9px -9px 12px -9px; padding: 12px; border-radius: 4px 4px 0 0;">
+              <h4 style="margin: 0; font-size: 16px; font-weight: 600;">${attraction.name}</h4>
+              <div style="font-size: 12px; opacity: 0.9; margin-top: 4px;">第${attraction.dayIndex + 1}天 · 景点${attraction.globalOrder}</div>
+            </div>
+            ${attraction.address ? `<div style="margin-bottom: 8px; font-size: 13px; color: #555;"><strong>📍 地址:</strong> ${attraction.address}</div>` : ''}
+            ${attraction.description ? `<div style="font-size: 13px; color: #666; line-height: 1.4;"><strong>📝 描述:</strong> ${attraction.description}</div>` : ''}
+          </div>
+        `;
+        
+        marker.bindPopup(popupContent, {
+          maxWidth: 300,
+          className: 'custom-popup'
+        });
+        
+        // 添加到地图
+        marker.addTo(map);
+        markers.push(marker);
+        
+        // 记录有效景点和路径点
+        validAttractions.push(attraction);
+        pathCoordinates.push([lat, lng]);
+        bounds.extend([lat, lng]);
+        
+        console.log(`添加标记: ${attraction.name} (${attraction.globalOrder})`);
+      } else {
+        console.warn(`跳过无效坐标的景点: ${attraction.name}`);
+        // 收集无法定位的景点信息
+        failedAttractions.push({
+          name: attraction.name,
+          address: attraction.address || '无地址信息',
+          dayIndex: attraction.dayIndex + 1,
+          globalOrder: attraction.globalOrder,
+          geocodingFailed: geocodingFailed
+        });
       }
     }
-
-    if (bounds.isValid()) {
-      map.fitBounds(bounds);
+    
+    // 如果有无法定位的景点，显示警告提示
+    if (failedAttractions.length > 0) {
+      const failedList = failedAttractions.map(attr => 
+        `• ${attr.name} (第${attr.dayIndex}天, 景点${attr.globalOrder}) - ${attr.address}`
+      ).join('\n');
+      
+      const warningMessage = `⚠️ OpenStreetMap无法定位以下${failedAttractions.length}个景点：\n\n${failedList}\n\n建议：\n1. 检查景点名称和地址是否准确\n2. 尝试使用更具体的地址信息\n3. 或者切换到百度地图查看这些景点`;
+      
+      // 显示警告通知
+      showNotification(warningMessage, 'warning');
+      
+      // 同时在控制台输出详细信息
+      console.warn('OpenStreetMap无法定位的景点详情:', failedAttractions);
     }
+    
+    // 创建路线连线
+    if (pathCoordinates.length > 1) {
+      const routeLine = L.polyline(pathCoordinates, {
+        color: '#007bff',
+        weight: 4,
+        opacity: 0.8,
+        smoothFactor: 1,
+        dashArray: null
+      });
+      
+      routeLine.addTo(map);
+      polylines.push(routeLine);
+      
+      console.log(`创建路线连线，包含 ${pathCoordinates.length} 个点`);
+    }
+    
+    // 调整地图视野
+    if (bounds.isValid() && pathCoordinates.length > 0) {
+      map.fitBounds(bounds.pad(0.1));
+    }
+    
+    console.log(`OpenStreetMap处理完成: ${validAttractions.length}/${allAttractions.length} 个景点成功显示`);
 
   } else if (mapProvider === 'baidu' && typeof BMap !== 'undefined') {
     const geocoder = new BMap.Geocoder();
-    const sortedDays = [...days].sort((a, b) => a.day_index - b.day_index);
+    const sortedDays = [...days].sort((a, b) => a.dayIndex - b.dayIndex);
     const viewportPoints = [];
 
+    // 收集所有景点并按全局顺序排序
+    const allAttractions = [];
     for (const day of sortedDays) {
       let dayAttractions = [];
       try {
@@ -805,64 +1009,90 @@ async function addMapMarkers() {
       }
 
       dayAttractions.sort((a, b) => (a.visitOrder || 0) - (b.visitOrder || 0));
+      
+      // 为每个景点添加天数信息用于全局排序
+      dayAttractions.forEach(attraction => {
+        attraction.dayIndex = day.dayIndex;
+        attraction.dayCity = day.city;
+        allAttractions.push(attraction);
+      });
+    }
 
-      const pathPoints = [];
-      for (let i = 0; i < dayAttractions.length; i++) {
-        const attraction = dayAttractions[i];
+    // 按天数和景点顺序进行全局排序
+    allAttractions.sort((a, b) => {
+      if (a.dayIndex !== b.dayIndex) {
+        return a.dayIndex - b.dayIndex;
+      }
+      return (a.visitOrder || 0) - (b.visitOrder || 0);
+    });
 
-        const point = await new Promise(resolve => {
-          if (attraction.latitude && attraction.longitude) {
-            resolve(new BMap.Point(attraction.longitude, attraction.latitude));
-          } else if (attraction.address) {
-            const region = detectCountry(attraction.address) || day.city;
-            geocoder.getPoint(attraction.address, pt => resolve(pt), region);
+    const globalPathPoints = [];
+    let markerIndex = 1;
+    
+    for (const attraction of allAttractions) {
+      const point = await new Promise(resolve => {
+        if (attraction.latitude && attraction.longitude) {
+          resolve(new BMap.Point(attraction.longitude, attraction.latitude));
+        } else if (attraction.address) {
+          // 检查地址是否为经纬度格式
+          const coordResult = isCoordinateFormat(attraction.address);
+          if (coordResult) {
+            // 直接使用经纬度创建点
+            resolve(new BMap.Point(coordResult.lng, coordResult.lat));
           } else {
-            resolve(null);
+            // 使用地理编码服务
+            const region = detectCountry(attraction.address) || attraction.dayCity;
+            geocoder.getPoint(attraction.address, pt => resolve(pt), region);
           }
-        });
-
-        if (point) {
-          const marker = new BMap.Marker(point);
-          const label = new BMap.Label((i + 1).toString(), { offset: new BMap.Size(0, -20) });
-          label.setStyle({
-            color: '#ffffff',
-            backgroundColor: '#f59e0b',
-            border: '2px solid #ffffff',
-            borderRadius: '50%',
-            padding: '3px 6px',
-            fontWeight: 'bold',
-            textAlign: 'center',
-            fontSize: '12px'
-          });
-          marker.setLabel(label);
-          map.addOverlay(marker);
-
-          const infoWindow = new BMap.InfoWindow(`
-            <div style="padding: 10px;">
-              <h5 style="margin: 0 0 8px 0;">${attraction.name}</h5>
-              ${attraction.address ? `<p><strong>地址:</strong> ${attraction.address}</p>` : ''}
-              ${attraction.description ? `<p><strong>描述:</strong> ${attraction.description}</p>` : ''}
-            </div>`);
-
-          marker.addEventListener('click', () => {
-            map.openInfoWindow(infoWindow, point);
-          });
-
-          markers.push({ marker, point, attraction, infoWindow });
-          pathPoints.push(point);
-          viewportPoints.push(point);
+        } else {
+          resolve(null);
         }
-      }
+      });
 
-      if (pathPoints.length > 1) {
-        const polyline = new BMap.Polyline(pathPoints, {
-          strokeColor: '#f59e0b',
-          strokeWeight: 3,
-          strokeOpacity: 0.8
+      if (point) {
+        const marker = new BMap.Marker(point);
+        const label = new BMap.Label(markerIndex.toString(), { offset: new BMap.Size(0, -20) });
+        label.setStyle({
+          color: '#ffffff',
+          backgroundColor: '#f59e0b',
+          border: '2px solid #ffffff',
+          borderRadius: '50%',
+          padding: '3px 6px',
+          fontWeight: 'bold',
+          textAlign: 'center',
+          fontSize: '12px'
         });
-        map.addOverlay(polyline);
-        polylines.push(polyline);
+        marker.setLabel(label);
+        map.addOverlay(marker);
+
+        const infoWindow = new BMap.InfoWindow(`
+          <div style="padding: 10px;">
+            <h5 style="margin: 0 0 8px 0;">${attraction.name}</h5>
+            <p style="margin: 4px 0; color: #666; font-size: 13px;">第${attraction.dayIndex}天 - 景点${markerIndex}</p>
+            ${attraction.address ? `<p><strong>地址:</strong> ${attraction.address}</p>` : ''}
+            ${attraction.description ? `<p><strong>描述:</strong> ${attraction.description}</p>` : ''}
+          </div>`);
+
+        marker.addEventListener('click', () => {
+          map.openInfoWindow(infoWindow, point);
+        });
+
+        markers.push({ marker, point, attraction, infoWindow });
+        globalPathPoints.push(point);
+        viewportPoints.push(point);
+        markerIndex++;
       }
+    }
+
+    // 创建全局连线
+    if (globalPathPoints.length > 1) {
+      const polyline = new BMap.Polyline(globalPathPoints, {
+        strokeColor: '#f59e0b',
+        strokeWeight: 3,
+        strokeOpacity: 0.8
+      });
+      map.addOverlay(polyline);
+      polylines.push(polyline);
     }
 
     if (viewportPoints.length > 0) {
@@ -903,57 +1133,75 @@ function clearMapMarkers() {
 
 // 显示路线
 async function showRoute() {
-  if (days.length < 2) {
-    showNotification('需要至少2个城市才能显示路线', 'info');
+  if (!map || days.length === 0) {
+    showNotification('暂无行程数据', 'warning');
     return;
   }
 
-  const sortedDays = [...days].sort((a, b) => a.day_index - b.day_index);
-
-  if (mapProvider === 'openstreetmap') {
-    const coords = [];
+  try {
+    // 收集所有景点坐标
+    const allPoints = [];
+    const sortedDays = [...days].sort((a, b) => a.dayIndex - b.dayIndex);
+    
     for (const day of sortedDays) {
-      try {
-        const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(day.city)}`);
-        const data = await resp.json();
-        if (data[0]) {
-          coords.push([parseFloat(data[0].lat), parseFloat(data[0].lon)]);
+      const dayAttractions = day.attractionsList || [];
+      dayAttractions.sort((a, b) => (a.visitOrder || 0) - (b.visitOrder || 0));
+      
+      for (const attraction of dayAttractions) {
+        if (attraction.latitude && attraction.longitude) {
+          allPoints.push({
+            lat: attraction.latitude,
+            lng: attraction.longitude,
+            name: attraction.name
+          });
         }
-      } catch (e) {
-        console.error('路线地理编码失败:', e);
       }
     }
 
-    if (coords.length > 1) {
+    if (allPoints.length < 2) {
+      showNotification('需要至少2个景点才能显示路线', 'warning');
+      return;
+    }
+
+    if (mapProvider === 'openstreetmap' && typeof L !== 'undefined') {
+      // 清除之前的路线
       if (routePolyline) {
         map.removeLayer(routePolyline);
       }
-      routePolyline = L.polyline(coords, { color: '#3b82f6', weight: 4 }).addTo(map);
-      map.fitBounds(L.latLngBounds(coords));
-      showNotification('路线规划完成', 'success');
-    } else {
-      showNotification('路线规划失败', 'error');
-    }
-
-  } else if (mapProvider === 'baidu' && typeof BMap !== 'undefined') {
-    if (!baiduDrivingRoute) {
-      baiduDrivingRoute = new BMap.DrivingRoute(map, {
-        renderOptions: { map: map, autoViewport: true }
-      });
-    } else {
-      baiduDrivingRoute.clearResults();
-    }
-
-    baiduDrivingRoute.setSearchCompleteCallback(() => {
-      if (baiduDrivingRoute.getStatus() === BMAP_STATUS_SUCCESS) {
-        showNotification('路线规划完成', 'success');
-      } else {
-        showNotification('路线规划失败', 'error');
+      
+      // 创建路线
+      const latlngs = allPoints.map(p => [p.lat, p.lng]);
+      routePolyline = L.polyline(latlngs, {
+        color: '#ef4444',
+        weight: 4,
+        opacity: 0.8,
+        dashArray: '10, 10'
+      }).addTo(map);
+      
+      showNotification('路线已显示', 'success');
+      
+    } else if (mapProvider === 'baidu' && typeof BMap !== 'undefined') {
+      // 清除之前的路线
+      if (baiduDrivingRoute) {
+        map.removeOverlay(baiduDrivingRoute);
       }
-    });
-
-    const waypoints = sortedDays.slice(1, -1).map(d => d.city);
-    baiduDrivingRoute.search(sortedDays[0].city, sortedDays[sortedDays.length - 1].city, { waypoints });
+      
+      // 创建路线
+      const points = allPoints.map(p => new BMap.Point(p.lng, p.lat));
+      baiduDrivingRoute = new BMap.Polyline(points, {
+        strokeColor: '#ef4444',
+        strokeWeight: 4,
+        strokeOpacity: 0.8,
+        strokeStyle: 'dashed'
+      });
+      map.addOverlay(baiduDrivingRoute);
+      
+      showNotification('路线已显示', 'success');
+    }
+    
+  } catch (error) {
+    console.error('显示路线失败:', error);
+    showNotification('显示路线失败', 'error');
   }
 }
 

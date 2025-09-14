@@ -436,47 +436,77 @@ async function addMapMarkers() {
   if (mapProvider === 'openstreetmap' && typeof L !== 'undefined') {
     const bounds = L.latLngBounds();
     const sortedDays = [...days].sort((a, b) => a.dayIndex - b.dayIndex);
-
+    
+    // 收集所有景点并按全局顺序排序
+    const allAttractions = [];
     for (const day of sortedDays) {
       const dayAttractions = day.attractionsList || [];
       dayAttractions.sort((a, b) => (a.visitOrder || 0) - (b.visitOrder || 0));
+      
+      // 为每个景点添加天数信息用于全局排序
+      dayAttractions.forEach(attraction => {
+        attraction.dayIndex = day.dayIndex;
+        attraction.dayCity = day.city;
+        allAttractions.push(attraction);
+      });
+    }
 
-      const path = [];
-      for (let i = 0; i < dayAttractions.length; i++) {
-        const attraction = dayAttractions[i];
+    // 按天数和景点顺序进行全局排序
+    allAttractions.sort((a, b) => {
+      if (a.dayIndex !== b.dayIndex) {
+        return a.dayIndex - b.dayIndex;
+      }
+      return (a.visitOrder || 0) - (b.visitOrder || 0);
+    });
 
-        if ((!attraction.latitude || !attraction.longitude) && attraction.address) {
-          try {
-            const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(attraction.address + ', ' + day.city)}`);
-            const data = await resp.json();
-            if (data[0]) {
-              attraction.latitude = parseFloat(data[0].lat);
-              attraction.longitude = parseFloat(data[0].lon);
-            }
-          } catch (e) {
-            console.error('地理编码失败:', e);
+    const globalPath = [];
+    let markerIndex = 1;
+    
+    for (const attraction of allAttractions) {
+      if ((!attraction.latitude || !attraction.longitude) && attraction.address) {
+        try {
+          const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(attraction.address + ', ' + attraction.dayCity)}`);
+          const data = await resp.json();
+          if (data[0]) {
+            attraction.latitude = parseFloat(data[0].lat);
+            attraction.longitude = parseFloat(data[0].lon);
           }
-        }
-
-        if (attraction.latitude && attraction.longitude) {
-          const marker = L.marker([attraction.latitude, attraction.longitude]).addTo(map);
-          marker.bindPopup(`
-            <div style="padding: 10px; max-width: 250px;">
-              <h5 style="margin: 0 0 8px 0; color: #1f2937;">${attraction.name}</h5>
-              ${attraction.address ? `<div style="margin-bottom: 6px; font-size: 13px;">📍 ${attraction.address}</div>` : ''}
-              ${attraction.description ? `<div style="font-size: 13px;">📝 ${attraction.description}</div>` : ''}
-            </div>`);
-
-          markers.push(marker);
-          path.push([attraction.latitude, attraction.longitude]);
-          bounds.extend([attraction.latitude, attraction.longitude]);
+        } catch (e) {
+          console.error('地理编码失败:', e);
         }
       }
 
-      if (path.length > 1) {
-        const polyline = L.polyline(path, { color: '#f59e0b', weight: 2 }).addTo(map);
-        polylines.push(polyline);
+      if (attraction.latitude && attraction.longitude) {
+        const marker = L.marker([attraction.latitude, attraction.longitude]).addTo(map);
+        
+        // 添加带编号的自定义图标
+        const customIcon = L.divIcon({
+          html: `<div style="background-color: #f59e0b; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${markerIndex}</div>`,
+          className: 'custom-marker',
+          iconSize: [24, 24],
+          iconAnchor: [12, 12]
+        });
+        marker.setIcon(customIcon);
+        
+        marker.bindPopup(`
+          <div style="padding: 10px; max-width: 250px;">
+            <h5 style="margin: 0 0 8px 0; color: #1f2937;">${attraction.name}</h5>
+            <div style="margin-bottom: 6px; font-size: 13px; color: #6b7280;">第${attraction.dayIndex}天 - 景点${markerIndex}</div>
+            ${attraction.address ? `<div style="margin-bottom: 6px; font-size: 13px;">📍 ${attraction.address}</div>` : ''}
+            ${attraction.description ? `<div style="font-size: 13px;">📝 ${attraction.description}</div>` : ''}
+          </div>`);
+
+        markers.push(marker);
+        globalPath.push([attraction.latitude, attraction.longitude]);
+        bounds.extend([attraction.latitude, attraction.longitude]);
+        markerIndex++;
       }
+    }
+
+    // 创建全局连线
+    if (globalPath.length > 1) {
+      const polyline = L.polyline(globalPath, { color: '#f59e0b', weight: 3, opacity: 0.8 }).addTo(map);
+      polylines.push(polyline);
     }
 
     if (bounds.isValid()) {
@@ -488,70 +518,90 @@ async function addMapMarkers() {
     const sortedDays = [...days].sort((a, b) => a.dayIndex - b.dayIndex);
     const viewportPoints = [];
 
+    // 收集所有景点并按全局顺序排序
+    const allAttractions = [];
     for (const day of sortedDays) {
       const dayAttractions = day.attractionsList || [];
       dayAttractions.sort((a, b) => (a.visitOrder || 0) - (b.visitOrder || 0));
+      
+      // 为每个景点添加天数信息用于全局排序
+      dayAttractions.forEach(attraction => {
+        attraction.dayIndex = day.dayIndex;
+        attraction.dayCity = day.city;
+        allAttractions.push(attraction);
+      });
+    }
 
-      const pathPoints = [];
-      for (let i = 0; i < dayAttractions.length; i++) {
-        const attraction = dayAttractions[i];
+    // 按天数和景点顺序进行全局排序
+    allAttractions.sort((a, b) => {
+      if (a.dayIndex !== b.dayIndex) {
+        return a.dayIndex - b.dayIndex;
+      }
+      return (a.visitOrder || 0) - (b.visitOrder || 0);
+    });
 
-        const point = await new Promise(resolve => {
-          if (attraction.latitude && attraction.longitude) {
-            resolve(new BMap.Point(attraction.longitude, attraction.latitude));
-          } else if (attraction.address) {
-            const region = detectCountry(attraction.address) || day.city;
-            geocoder.getPoint(attraction.address, pt => resolve(pt), region);
-          } else {
-            resolve(null);
-          }
-        });
-
-        if (point) {
-          const marker = new BMap.Marker(point);
-          const label = new BMap.Label((i + 1).toString(), { offset: new BMap.Size(0, -20) });
-          label.setStyle({
-            color: '#ffffff',
-            backgroundColor: '#f59e0b',
-            border: '2px solid #ffffff',
-            borderRadius: '50%',
-            width: '20px',
-            height: '20px',
-            lineHeight: '20px',
-            textAlign: 'center',
-            fontSize: '12px',
-            fontWeight: 'bold'
-          });
-          marker.setLabel(label);
-          
-          const infoWindow = new BMap.InfoWindow(`
-            <div style="padding: 10px; max-width: 250px;">
-              <h5 style="margin: 0 0 8px 0; color: #1f2937;">${attraction.name}</h5>
-              ${attraction.address ? `<div style="margin-bottom: 6px; font-size: 13px;">📍 ${attraction.address}</div>` : ''}
-              ${attraction.description ? `<div style="font-size: 13px;">📝 ${attraction.description}</div>` : ''}
-            </div>
-          `);
-          
-          marker.addEventListener('click', () => {
-            map.openInfoWindow(infoWindow, point);
-          });
-          
-          map.addOverlay(marker);
-          markers.push(marker);
-          pathPoints.push(point);
-          viewportPoints.push(point);
+    const globalPathPoints = [];
+    let markerIndex = 1;
+    
+    for (const attraction of allAttractions) {
+      const point = await new Promise(resolve => {
+        if (attraction.latitude && attraction.longitude) {
+          resolve(new BMap.Point(attraction.longitude, attraction.latitude));
+        } else if (attraction.address) {
+          const region = detectCountry(attraction.address) || attraction.dayCity;
+          geocoder.getPoint(attraction.address, pt => resolve(pt), region);
+        } else {
+          resolve(null);
         }
-      }
+      });
 
-      if (pathPoints.length > 1) {
-        const polyline = new BMap.Polyline(pathPoints, {
-          strokeColor: '#f59e0b',
-          strokeWeight: 3,
-          strokeOpacity: 0.8
+      if (point) {
+        const marker = new BMap.Marker(point);
+        const label = new BMap.Label(markerIndex.toString(), { offset: new BMap.Size(0, -20) });
+        label.setStyle({
+          color: '#ffffff',
+          backgroundColor: '#f59e0b',
+          border: '2px solid #ffffff',
+          borderRadius: '50%',
+          width: '20px',
+          height: '20px',
+          lineHeight: '20px',
+          textAlign: 'center',
+          fontSize: '12px',
+          fontWeight: 'bold'
         });
-        map.addOverlay(polyline);
-        polylines.push(polyline);
+        marker.setLabel(label);
+        
+        const infoWindow = new BMap.InfoWindow(`
+          <div style="padding: 10px; max-width: 250px;">
+            <h5 style="margin: 0 0 8px 0; color: #1f2937;">${attraction.name}</h5>
+            <div style="margin-bottom: 6px; font-size: 13px; color: #6b7280;">第${attraction.dayIndex}天 - 景点${markerIndex}</div>
+            ${attraction.address ? `<div style="margin-bottom: 6px; font-size: 13px;">📍 ${attraction.address}</div>` : ''}
+            ${attraction.description ? `<div style="font-size: 13px;">📝 ${attraction.description}</div>` : ''}
+          </div>
+        `);
+        
+        marker.addEventListener('click', () => {
+          map.openInfoWindow(infoWindow, point);
+        });
+        
+        map.addOverlay(marker);
+        markers.push(marker);
+        globalPathPoints.push(point);
+        viewportPoints.push(point);
+        markerIndex++;
       }
+    }
+
+    // 创建全局连线
+    if (globalPathPoints.length > 1) {
+      const polyline = new BMap.Polyline(globalPathPoints, {
+        strokeColor: '#f59e0b',
+        strokeWeight: 3,
+        strokeOpacity: 0.8
+      });
+      map.addOverlay(polyline);
+      polylines.push(polyline);
     }
 
     if (viewportPoints.length > 0) {
