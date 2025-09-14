@@ -34,7 +34,13 @@ db.PlanFile.belongsTo(db.TravelPlan, { foreignKey: 'planId' });
 db.PlanDay.hasMany(db.Attraction, { foreignKey: 'planDayId', as: 'attractionList' });
 db.Attraction.belongsTo(db.PlanDay, { foreignKey: 'planDayId' });
 
-db.TravelPlan.belongsToMany(db.User, { through: db.PlanShare, as: 'sharedWith', foreignKey: 'planId', otherKey: 'userId' });
-db.User.belongsToMany(db.TravelPlan, { through: db.PlanShare, as: 'sharedPlans', foreignKey: 'userId', otherKey: 'planId' });
+// PlanShare关联关系
+db.PlanShare.belongsTo(db.TravelPlan, { foreignKey: 'planId', as: 'plan' });
+db.PlanShare.belongsTo(db.User, { foreignKey: 'sharedWithUserId', as: 'sharedWithUser' });
+db.PlanShare.belongsTo(db.User, { foreignKey: 'sharedByUserId', as: 'sharedByUser' });
+
+db.TravelPlan.hasMany(db.PlanShare, { foreignKey: 'planId', as: 'shares' });
+db.User.hasMany(db.PlanShare, { foreignKey: 'sharedWithUserId', as: 'receivedShares' });
+db.User.hasMany(db.PlanShare, { foreignKey: 'sharedByUserId', as: 'sentShares' });
 
 module.exports = db;

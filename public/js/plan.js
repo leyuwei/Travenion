@@ -201,8 +201,7 @@ function previewFile(fileId) {
   
   // 创建预览模态框
   const modal = document.createElement('div');
-  modal.className = 'modal';
-  modal.style.display = 'flex';
+  modal.className = 'modal show';
   modal.innerHTML = `
     <div class="modal-content" style="max-width: 90vw; max-height: 90vh; overflow: auto;">
       <div class="modal-header">
@@ -288,8 +287,7 @@ function editFileDescription(fileId) {
   
   // 创建编辑模态框
   const modal = document.createElement('div');
-  modal.className = 'modal';
-  modal.style.display = 'flex';
+  modal.className = 'modal show';
   modal.innerHTML = `
     <div class="modal-content">
       <div class="modal-header">
@@ -390,6 +388,9 @@ async function loadPlan() {
     if (currentPlan.defaultMap) {
       mapProvider = currentPlan.defaultMap;
     }
+    
+    // 更新地图按钮状态
+    initMapButtons();
     
     await loadDays();
     await loadFiles();
@@ -604,6 +605,23 @@ function updateStatistics() {
 // 加载地图
 async function loadMap() {
   const mapElement = document.getElementById('map');
+
+  // 清理现有地图实例
+  if (map) {
+    try {
+      if (mapProvider === 'openstreetmap' && map.remove) {
+        map.remove();
+      } else if (mapProvider === 'baidu' && map.clearOverlays) {
+        map.clearOverlays();
+      }
+    } catch (e) {
+      console.warn('清理地图实例时出错:', e);
+    }
+    map = null;
+  }
+
+  // 清理地图容器
+  mapElement.innerHTML = '';
 
   // 显示加载状态
   mapElement.innerHTML = '<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #6b7280; text-align: center; padding: 20px;"><div style="font-size: 1.2em; margin-bottom: 10px;">🗺️ 正在加载地图...</div><div style="font-size: 0.9em;">请稍候</div></div>';
@@ -951,232 +969,97 @@ function openFileModal() {
   form.reset();
   document.getElementById('selectedFiles').innerHTML = '';
   document.querySelector('#fileModal .btn-primary').disabled = true;
-  modal.style.display = 'flex';
+  modal.classList.add('show');
 }
 
 function closeFileModal() {
-  document.getElementById('fileModal').style.display = 'none';
+  document.getElementById('fileModal').classList.remove('show');
 }
 
-// 分享计划
+// 新的用户分享功能
 function sharePlan() {
-  const plan = window.currentPlan;
-  if (!plan) {
+  if (!currentPlan) {
     showNotification('计划信息加载失败', 'error');
     return;
   }
   
-  // 加载当前分享设置
-  loadShareSettings();
-  openModal('sharePlanModal');
+  // 加载用户列表和已分享用户
+  loadUsersForSharing();
+  openModal('shareModal');
 }
 
-// 加载分享设置
-async function loadShareSettings() {
+// 加载用户列表用于分享
+async function loadUsersForSharing() {
   try {
-    const response = await fetch(`/travenion/api/plans/${planId}/share`, {
+    const response = await fetch('/travenion/api/plans/users', {
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`
       }
     });
     
     if (response.ok) {
-      const shareData = await response.json();
-      document.getElementById('enableSharing').checked = shareData.is_public;
-      
-      if (shareData.is_public) {
-        document.getElementById('shareOptions').style.display = 'block';
-        document.getElementById('shareUrl').value = `${window.location.origin}/shared/${shareData.share_token}`;
-        
-        // 设置权限
-        const permissionRadios = document.querySelectorAll('input[name="sharePermission"]');
-        permissionRadios.forEach(radio => {
-          if (radio.value === shareData.permission) {
-            radio.checked = true;
-          }
-        });
-        
-        // 加载已邀请用户
-        loadInvitedUsers(shareData.invited_users || []);
-      }
+      const users = await response.json();
+      renderUsersList(users);
     }
   } catch (error) {
-    console.error('加载分享设置失败:', error);
+    console.error('加载用户列表失败:', error);
+    showNotification('加载用户列表失败', 'error');
   }
+  
+  // 同时加载已分享的用户
+  loadSharedUsers();
 }
 
-// 加载已邀请用户列表
-function loadInvitedUsers(users) {
-  const container = document.getElementById('invitedUsers');
+// 渲染用户列表
+function renderUsersList(users) {
+  const container = document.getElementById('usersList');
   container.innerHTML = '';
+  
+  if (users.length === 0) {
+    container.innerHTML = '<p style="text-align: center; color: #6b7280; margin: 20px 0;">暂无其他用户</p>';
+    return;
+  }
   
   users.forEach(user => {
     const userDiv = document.createElement('div');
-    userDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px; margin-bottom: 8px; background: #f9fafb;';
+    userDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 8px; background: #f9fafb;';
     userDiv.innerHTML = `
       <div>
-        <span style="font-weight: 500;">${user.email}</span>
-        <small style="color: #6b7280; margin-left: 8px;">${user.permission}</small>
+        <span style="font-weight: 500; color: #1f2937;">${user.username}</span>
+        <small style="color: #6b7280; margin-left: 8px;">${user.email}</small>
       </div>
-      <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeInvitedUser('${user.email}')">
-        <i class="fas fa-times"></i>
+      <button type="button" class="btn btn-sm btn-primary" onclick="shareWithUser('${user.username}')">
+        <i class="fas fa-share"></i> 分享
       </button>
     `;
     container.appendChild(userDiv);
   });
 }
 
-// 切换分享选项显示
-function toggleShareOptions() {
-  const enableSharing = document.getElementById('enableSharing');
-  const shareOptions = document.getElementById('shareOptions');
-  
-  if (enableSharing.checked) {
-    shareOptions.style.display = 'block';
-    // 生成分享链接
-    generateShareUrl();
-  } else {
-    shareOptions.style.display = 'none';
-  }
-}
-
-// 生成分享链接
-async function generateShareUrl() {
-  try {
-    const response = await fetch(`/travenion/api/plans/${planId}/share/generate`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      document.getElementById('shareUrl').value = `${window.location.origin}/shared/${data.share_token}`;
-    }
-  } catch (error) {
-    console.error('生成分享链接失败:', error);
-  }
-}
-
-// 复制分享链接
-function copyShareUrl() {
-  const shareUrl = document.getElementById('shareUrl');
-  shareUrl.select();
-  document.execCommand('copy');
-  showNotification('分享链接已复制到剪贴板', 'success');
-}
-
-// 邀请用户
-async function inviteUser() {
-  const email = document.getElementById('inviteEmail').value.trim();
-  if (!email) {
-    showNotification('请输入邮箱地址', 'error');
-    return;
-  }
-  
-  if (!isValidEmail(email)) {
-    showNotification('请输入有效的邮箱地址', 'error');
-    return;
-  }
-  
-  const permission = document.querySelector('input[name="sharePermission"]:checked').value;
-  
-  try {
-    const response = await fetch(`/travenion/api/plans/${planId}/share/invite`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ email, permission })
-    });
-    
-    if (response.ok) {
-      showNotification('邀请发送成功', 'success');
-      document.getElementById('inviteEmail').value = '';
-      // 重新加载邀请用户列表
-      loadShareSettings();
-    } else {
-      const error = await response.json();
-      showNotification(error.message || '邀请发送失败', 'error');
-    }
-  } catch (error) {
-    console.error('邀请用户失败:', error);
-    showNotification('邀请发送失败', 'error');
-  }
-}
-
-// 移除已邀请用户
-async function removeInvitedUser(email) {
-  if (!confirm(`确定要移除用户 ${email} 的访问权限吗？`)) {
-    return;
-  }
-  
-  try {
-    const response = await fetch(`/travenion/api/plans/${planId}/share/invite`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ email })
-    });
-    
-    if (response.ok) {
-      showNotification('用户访问权限已移除', 'success');
-      // 重新加载邀请用户列表
-      loadShareSettings();
-    } else {
-      showNotification('移除失败', 'error');
-    }
-  } catch (error) {
-    console.error('移除用户失败:', error);
-    showNotification('移除失败', 'error');
-  }
-}
-
-// 保存分享设置
-async function saveShareSettings() {
-  const isPublic = document.getElementById('enableSharing').checked;
-  const permission = document.querySelector('input[name="sharePermission"]:checked').value;
-  
+// 分享给指定用户
+async function shareWithUser(username) {
   try {
     const response = await fetch(`/travenion/api/plans/${planId}/share`, {
-      method: 'PUT',
+      method: 'POST',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        is_public: isPublic,
-        permission: permission
-      })
+      body: JSON.stringify({ username, permission: 'view' })
     });
     
     if (response.ok) {
-      showNotification('分享设置已保存', 'success');
-      closeModal('sharePlanModal');
+      showNotification(`已分享给 ${username}`, 'success');
+      // 重新加载用户列表和已分享列表
+      loadUsersForSharing();
     } else {
-      showNotification('保存失败', 'error');
+      const error = await response.json();
+      showNotification(error.message || '分享失败', 'error');
     }
   } catch (error) {
-    console.error('保存分享设置失败:', error);
-    showNotification('保存失败', 'error');
+    console.error('分享失败:', error);
+    showNotification('分享失败', 'error');
   }
-}
-
-// 验证邮箱格式
-function isValidEmail(email) {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-}
-
-function openShareModal() {
-  const modal = document.getElementById('shareModal');
-  loadSharedUsers();
-  modal.style.display = 'flex';
 }
 
 // 通用模态框控制
@@ -1195,7 +1078,7 @@ function closeModal(modalId) {
 }
 
 function closeShareModal() {
-  document.getElementById('shareModal').style.display = 'none';
+  document.getElementById('shareModal').classList.remove('show');
 }
 
 function openEditPlanModal() {
@@ -1208,11 +1091,11 @@ function openEditPlanModal() {
     form.defaultMap.value = currentPlan.defaultMap || 'openstreetmap';
   }
   
-  modal.style.display = 'flex';
+  modal.classList.add('show');
 }
 
 function closeEditPlanModal() {
-  document.getElementById('editPlanModal').style.display = 'none';
+  document.getElementById('editPlanModal').classList.remove('show');
 }
 
 // 编辑行程
@@ -1326,12 +1209,18 @@ async function loadSharedUsers() {
       const container = document.getElementById('sharedUsersList');
       
       if (shares.length === 0) {
-        container.innerHTML = '暂无分享';
+        container.innerHTML = '<p style="text-align: center; color: #6b7280; margin: 20px 0;">暂无分享</p>';
       } else {
         container.innerHTML = shares.map(share => `
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
-            <span>${share.username}</span>
-            <button class="btn btn-danger" onclick="removeShare('${share.username}')" style="padding: 4px 8px; font-size: 12px;">移除</button>
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 8px; background: #f9fafb;">
+            <div>
+              <span style="font-weight: 500; color: #1f2937;">${share.User.username}</span>
+              <small style="color: #6b7280; margin-left: 8px;">${share.User.email}</small>
+              <span style="color: #059669; margin-left: 8px; font-size: 12px;">${share.permission}</span>
+            </div>
+            <button class="btn btn-sm btn-outline-danger" onclick="removeShare('${share.User.username}')">
+              <i class="fas fa-times"></i> 移除
+            </button>
           </div>
         `).join('');
       }
@@ -1358,7 +1247,8 @@ async function removeShare(username) {
     }
     
     showNotification('已移除分享', 'success');
-    loadSharedUsers();
+    // 重新加载用户列表和已分享列表
+    loadUsersForSharing();
     
   } catch (error) {
     console.error('移除分享失败:', error);
@@ -1390,6 +1280,24 @@ function initMapButtons() {
 // 切换地图提供商
 function switchMapProvider(provider) {
   if (provider === mapProvider) return;
+  
+  // 清理现有地图实例
+  if (map) {
+    if (mapProvider === 'openstreetmap' && map.remove) {
+      map.remove();
+    } else if (mapProvider === 'baidu' && map.clearOverlays) {
+      map.clearOverlays();
+    }
+    map = null;
+  }
+  
+  // 清理路线和标记
+  markers = [];
+  polylines = [];
+  directionsService = null;
+  directionsRenderer = null;
+  baiduDrivingRoute = null;
+  routePolyline = null;
   
   mapProvider = provider;
   
@@ -1491,6 +1399,23 @@ document.addEventListener('DOMContentLoaded', () => {
   if (baiduMapBtn) {
     baiduMapBtn.addEventListener('click', () => {
       switchMapProvider('baidu');
+    });
+  }
+  
+  // 刷新地图
+  const refreshMapBtn = document.getElementById('refreshMapBtn');
+  if (refreshMapBtn) {
+    refreshMapBtn.addEventListener('click', () => {
+      // 清理现有地图和相关变量
+      markers = [];
+      polylines = [];
+      directionsService = null;
+      directionsRenderer = null;
+      baiduDrivingRoute = null;
+      routePolyline = null;
+      
+      loadMap();
+      showNotification('地图已刷新', 'success');
     });
   }
   
@@ -1806,7 +1731,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.modal').forEach(modal => {
     modal.addEventListener('click', (e) => {
       if (e.target === modal) {
-        modal.style.display = 'none';
+        modal.classList.remove('show');
       }
     });
   });

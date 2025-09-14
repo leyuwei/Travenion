@@ -3,6 +3,7 @@ if (!token) location.href = 'index.html';
 
 let currentUser = null;
 let allPlans = [];
+let sharedPlans = [];
 
 // 通知系统
 function showNotification(message, type = 'success') {
@@ -85,6 +86,25 @@ async function loadPlans() {
   }
 }
 
+// 加载分享给我的计划
+async function loadSharedPlans() {
+  try {
+    const res = await fetch('api/plans/shared-with-me', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    
+    if (!res.ok) {
+      throw new Error('获取分享计划失败');
+    }
+    
+    sharedPlans = await res.json();
+    renderSharedPlans();
+  } catch (error) {
+    console.error('加载分享计划失败:', error);
+    showNotification('加载分享计划失败', 'danger');
+  }
+}
+
 // 渲染计划列表
 function renderPlans() {
   const planGrid = document.getElementById('planGrid');
@@ -151,6 +171,78 @@ function renderPlans() {
   });
 }
 
+// 渲染分享计划列表
+function renderSharedPlans() {
+  const sharedPlanGrid = document.getElementById('sharedPlanGrid');
+  const sharedEmptyState = document.getElementById('sharedEmptyState');
+  
+  if (sharedPlans.length === 0) {
+    sharedEmptyState.style.display = 'block';
+    sharedPlanGrid.style.display = 'none';
+    return;
+  }
+  
+  sharedEmptyState.style.display = 'none';
+  sharedPlanGrid.style.display = 'grid';
+  sharedPlanGrid.innerHTML = '';
+  
+  sharedPlans.forEach(shareInfo => {
+    const plan = shareInfo.plan;
+    const sharedBy = shareInfo.sharedBy;
+    const permission = shareInfo.permission;
+    
+    const planCard = document.createElement('div');
+    planCard.className = 'card fade-in';
+    planCard.style.cursor = 'pointer';
+    
+    const dayCount = plan.days ? plan.days.length : 0;
+    const fileCount = plan.files ? plan.files.length : 0;
+    
+    planCard.innerHTML = `
+      <div class="card-header">
+        <h3 class="card-title" style="margin-bottom: 5px;">${plan.title}</h3>
+        <p style="color: #6b7280; margin: 0; font-size: 14px;">${plan.description || '暂无描述'}</p>
+        <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 12px; color: #059669;">👤 ${sharedBy.username} 分享</span>
+          <span class="badge badge-outline-${permission === 'edit' ? 'primary' : 'secondary'}" style="font-size: 11px;">
+            ${permission === 'edit' ? '可编辑' : '仅查看'}
+          </span>
+        </div>
+      </div>
+      <div style="padding: 20px 25px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+          <div style="text-align: center; padding: 10px; background: #f8fafc; border-radius: 8px;">
+            <div style="font-size: 1.5rem; color: #2563eb;">📅</div>
+            <div style="font-size: 14px; color: #6b7280;">行程天数</div>
+            <div style="font-weight: 600;">${dayCount} 天</div>
+          </div>
+          <div style="text-align: center; padding: 10px; background: #f8fafc; border-radius: 8px;">
+            <div style="font-size: 1.5rem; color: #059669;">📁</div>
+            <div style="font-size: 14px; color: #6b7280;">文件数量</div>
+            <div style="font-weight: 600;">${fileCount} 个</div>
+          </div>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+          <div style="display: flex; gap: 10px;">
+            <span class="badge badge-secondary">${plan.defaultMap === 'openstreetmap' ? 'OpenStreetMap' : '百度地图'}</span>
+            <span class="badge badge-outline-success">分享计划</span>
+          </div>
+          <span style="font-size: 12px; color: #9ca3af;">分享于 ${formatDate(shareInfo.sharedAt)}</span>
+        </div>
+        
+        <div style="display: flex; gap: 10px;">
+          <button class="btn btn-primary" style="flex: 1;" onclick="openPlan(${plan.id})">
+            查看详情
+          </button>
+        </div>
+      </div>
+    `;
+    
+    sharedPlanGrid.appendChild(planCard);
+  });
+}
+
 // 更新统计信息
 function updateStats() {
   document.getElementById('totalPlans').textContent = allPlans.length;
@@ -191,12 +283,12 @@ async function deletePlan(planId, planTitle) {
 
 // 模态框控制
 function openModal() {
-  document.getElementById('newPlanModal').style.display = 'block';
+  document.getElementById('newPlanModal').classList.add('show');
   document.body.style.overflow = 'hidden';
 }
 
 function closeModal() {
-  document.getElementById('newPlanModal').style.display = 'none';
+  document.getElementById('newPlanModal').classList.remove('show');
   document.body.style.overflow = 'auto';
   document.getElementById('newPlanForm').reset();
 }
@@ -205,6 +297,7 @@ function closeModal() {
 async function init() {
   await loadUserInfo();
   await loadPlans();
+  await loadSharedPlans();
   
   // 添加页面加载动画
   const elements = document.querySelectorAll('.fade-in');

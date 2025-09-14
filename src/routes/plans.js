@@ -1,17 +1,70 @@
 const express = require('express');
 const multer = require('multer');
-const { TravelPlan, PlanDay, PlanFile, User } = require('../models');
+const { TravelPlan, PlanDay, PlanFile, User, PlanShare } = require('../models');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
 
+
+
+
+
+
+
+
+
+// 以下路由需要认证
 router.use(auth);
+
+// 获取所有用户列表（用于分享）- 必须在 /:id 路由之前
+router.get('/users', async (req, res) => {
+  try {
+    const users = await User.findAll({
+      where: {
+        id: { [require('sequelize').Op.ne]: req.user.id } // 排除当前用户
+      },
+      attributes: ['id', 'username', 'email']
+    });
+    res.json(users);
+  } catch (error) {
+    console.error('获取用户列表失败:', error);
+    res.status(500).json({ message: '获取用户列表失败' });
+  }
+});
+
+// 获取分享给我的计划 - 必须在 /:id 路由之前
+router.get('/shared-with-me', async (req, res) => {
+  try {
+    const shares = await PlanShare.findAll({
+      where: { sharedWithUserId: req.user.id },
+      include: [
+        {
+          model: TravelPlan,
+          as: 'plan',
+          include: ['days', 'files']
+        },
+        {
+          model: User,
+          as: 'sharedByUser',
+          attributes: ['id', 'username', 'email']
+        }
+      ]
+    });
+    
+    res.json(shares);
+  } catch (error) {
+    console.error('获取分享计划失败:', error);
+    res.status(500).json({ message: '获取分享计划失败' });
+  }
+});
+
+
 
 router.get('/', async (req, res) => {
   const plans = await TravelPlan.findAll({
     where: { userId: req.user.id },
-    include: ['days', 'files', { model: User, as: 'sharedWith', attributes: ['id', 'username'], through: { attributes: [] } }]
+    include: ['days', 'files']
   });
   res.json(plans);
 });
@@ -29,7 +82,7 @@ router.post('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   const plan = await TravelPlan.findOne({
     where: { id: req.params.id, userId: req.user.id },
-    include: ['days', 'files', { model: User, as: 'sharedWith', attributes: ['id', 'username'], through: { attributes: [] } }]
+    include: ['days', 'files']
   });
   if (!plan) return res.status(404).json({ message: '未找到' });
   res.json(plan);
@@ -50,14 +103,98 @@ router.delete('/:id', async (req, res) => {
   res.status(204).end();
 });
 
-router.post('/:id/share', async (req, res) => {
-  const plan = await TravelPlan.findOne({ where: { id: req.params.id, userId: req.user.id } });
-  if (!plan) return res.status(404).json({ message: '未找到' });
-  const user = await User.findByPk(req.body.userId);
-  if (!user) return res.status(404).json({ message: '用户不存在' });
-  await plan.addSharedWith(user);
-  res.json({ message: '分享成功' });
+
+
+// 获取计划的分享信息
+router.get('/:id/shares', async (req, res) => {
+  try {
+    const plan = await TravelPlan.findOne({ where: { id: req.params.id, userId: req.user.id } });
+    if (!plan) return res.status(404).json({ message: '未找到' });
+    
+    const shares = await PlanShare.findAll({
+      where: { planId: req.params.id },
+      include: [
+        { model: User, as: 'sharedWithUser', attributes: ['id', 'username', 'email'] },
+        { model: User, as: 'sharedByUser', attributes: ['id', 'username'] }
+      ]
+    });
+    
+    res.json(shares);
+  } catch (error) {
+    console.error('获取分享信息失败:', error);
+    res.status(500).json({ message: '获取分享信息失败' });
+  }
 });
+
+// 分享计划给用户
+router.post('/:id/share', async (req, res) => {
+  try {
+    const plan = await TravelPlan.findOne({ where: { id: req.params.id, userId: req.user.id } });
+    if (!plan) return res.status(404).json({ message: '未找到' });
+    
+    const { userId, permission = 'view' } = req.body;
+    if (!userId) {
+      return res.status(400).json({ message: '用户ID不能为空' });
+    }
+    
+    const targetUser = await User.findByPk(userId);
+    if (!targetUser) {
+      return res.status(404).json({ message: '目标用户不存在' });
+    }
+    
+    // 检查是否已经分享过
+    const existingShare = await PlanShare.findOne({
+      where: {
+        planId: req.params.id,
+        sharedWithUserId: userId
+      }
+    });
+    
+    if (existingShare) {
+      return res.status(400).json({ message: '已经分享给该用户' });
+    }
+    
+    // 创建分享记录
+    const share = await PlanShare.create({
+      planId: req.params.id,
+      sharedWithUserId: userId,
+      sharedByUserId: req.user.id,
+      permission
+    });
+    
+    res.json({ message: '分享成功', share });
+  } catch (error) {
+    console.error('分享失败:', error);
+    res.status(500).json({ message: '分享失败' });
+  }
+});
+
+// 取消分享
+router.delete('/:id/share/:userId', async (req, res) => {
+  try {
+    const plan = await TravelPlan.findOne({ where: { id: req.params.id, userId: req.user.id } });
+    if (!plan) return res.status(404).json({ message: '未找到' });
+    
+    const share = await PlanShare.findOne({
+      where: {
+        planId: req.params.id,
+        sharedWithUserId: req.params.userId
+      }
+    });
+    
+    if (!share) {
+      return res.status(404).json({ message: '分享记录不存在' });
+    }
+    
+    await share.destroy();
+    res.json({ message: '取消分享成功' });
+  } catch (error) {
+    console.error('取消分享失败:', error);
+    res.status(500).json({ message: '取消分享失败' });
+  }
+});
+
+
 
 router.get('/:id/days', async (req, res) => {
   const plan = await TravelPlan.findOne({ where: { id: req.params.id, userId: req.user.id } });

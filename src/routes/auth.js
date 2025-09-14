@@ -30,4 +30,20 @@ router.post('/login', async (req, res) => {
   res.json({ token });
 });
 
+// 获取当前用户信息
+const auth = require('../middleware/auth');
+router.get('/me', auth, async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user.id, {
+      attributes: ['id', 'username', 'email']
+    });
+    if (!user) {
+      return res.status(404).json({ message: '用户不存在' });
+    }
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: '获取用户信息失败', error: error.message });
+  }
+});
+
 module.exports = router;
