@@ -25,7 +25,7 @@ node src/server.js
 
 ## 地图API配置
 
-本项目支持Google Maps和百度地图两种地图服务，采用安全的配置文件管理方式。
+本项目支持OpenStreetMap和百度地图两种地图服务，采用安全的配置文件管理方式。
 
 ### 快速配置
 
@@ -37,19 +37,14 @@ cp public/js/config.example.js public/js/config.js
 2. 编辑 `public/js/config.js` 文件，配置您的API密钥：
 ```javascript
 const MAP_CONFIG = {
-    GOOGLE_MAPS_API_KEY: '您的Google Maps API密钥',
     BAIDU_MAP_API_KEY: '您的百度地图API密钥',
-    DEFAULT_MAP_PROVIDER: 'google' // 或 'baidu'
+    DEFAULT_MAP_PROVIDER: 'openstreetmap' // 或 'baidu'
 };
 ```
 
-### Google Maps API密钥获取
+### OpenStreetMap 使用说明
 
-1. 访问 [Google Cloud Console](https://console.cloud.google.com/)
-2. 创建新项目或选择现有项目
-3. 启用 Maps JavaScript API
-4. 创建 API 密钥
-5. 设置 API 密钥限制（推荐）
+OpenStreetMap 无需申请API密钥，项目中通过 Leaflet 库进行加载和显示。
 
 ### 百度地图API密钥获取
 
@@ -69,7 +64,7 @@ const MAP_CONFIG = {
 ### 注意事项
 
 - 请根据您的用户群体选择合适的地图服务
-- Google Maps 适合海外用户
+- OpenStreetMap 适合海外用户
 - 百度地图适合中国大陆用户
 - `config.js` 文件包含敏感信息，请勿提交到公共代码仓库
 - 部署时请确保正确配置 `config.js` 文件

@@ -3,15 +3,8 @@
 // 注意：config.js 文件已被添加到 .gitignore 中，不会被提交到代码仓库
 
 const MAP_CONFIG = {
-    // Google Maps API 密钥
-    // 获取方式：https://developers.google.com/maps/documentation/javascript/get-api-key
-    // 1. 访问 Google Cloud Console
-    // 2. 创建或选择项目
-    // 3. 启用 Maps JavaScript API
-    // 4. 创建 API 密钥
-    // 5. 设置 API 密钥限制（推荐）
-    GOOGLE_MAPS_API_KEY: 'YOUR_GOOGLE_MAPS_API_KEY',
-    
+    // OpenStreetMap 无需API密钥，使用Leaflet库加载
+
     // 百度地图API密钥
     // 获取方式：https://lbsyun.baidu.com/apiconsole/key
     // 1. 注册百度开发者账号
@@ -20,12 +13,12 @@ const MAP_CONFIG = {
     // 4. 获取 AK（API Key）
     // 5. 配置服务权限
     BAIDU_MAP_API_KEY: 'YOUR_BAIDU_MAP_API_KEY',
-    
-    // 默认地图服务提供商 ('google' 或 'baidu')
+
+    // 默认地图服务提供商 ('openstreetmap' 或 'baidu')
     // 建议：
-    // - 海外用户使用 'google'
+    // - 海外用户使用 'openstreetmap'
     // - 国内用户使用 'baidu'
-    DEFAULT_MAP_PROVIDER: 'google'
+    DEFAULT_MAP_PROVIDER: 'openstreetmap'
 };
 
 // 导出配置对象
