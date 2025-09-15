@@ -2437,51 +2437,233 @@ function navigateToAttraction(attractionName, attractionAddress) {
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
   const isAndroid = /Android/.test(navigator.userAgent);
   
-  let navigationUrl;
-  
   if (isMobile) {
-    if (isIOS) {
-      // iOS设备：优先尝试Apple Maps，如果失败则使用Google Maps
-      navigationUrl = `maps://maps.apple.com/?q=${encodeURIComponent(query)}&dirflg=d`;
-      
-      // 尝试打开Apple Maps，如果失败则使用Google Maps
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      iframe.src = navigationUrl;
-      document.body.appendChild(iframe);
-      
-      // 延迟后移除iframe并尝试Google Maps作为备选
-      setTimeout(() => {
-        document.body.removeChild(iframe);
-        // 如果Apple Maps没有响应，尝试Google Maps
-        const googleMapsUrl = `https://maps.google.com/maps?q=${encodeURIComponent(query)}&navigate=yes`;
-        window.open(googleMapsUrl, '_blank');
-      }, 1000);
-      
-      return;
-    } else if (isAndroid) {
-      // Android设备：使用Google Maps的intent URL
-      navigationUrl = `google.navigation:q=${encodeURIComponent(query)}`;
-      
-      // 尝试打开Google Maps应用
-      window.location.href = navigationUrl;
-      
-      // 如果应用没有安装，延迟后打开网页版
-      setTimeout(() => {
-        const webUrl = `https://maps.google.com/maps?q=${encodeURIComponent(query)}&navigate=yes`;
-        window.open(webUrl, '_blank');
-      }, 1500);
-      
-      return;
-    }
+    // 移动端：显示导航应用选择器
+    showNavigationSelector(attractionName, query, isIOS, isAndroid);
+  } else {
+    // PC端：直接打开Google Maps网页版
+    const navigationUrl = `https://maps.google.com/maps?q=${encodeURIComponent(query)}&navigate=yes`;
+    window.open(navigationUrl, '_blank');
+    showNotification(`正在为您导航到: ${attractionName}`, 'success');
+  }
+}
+
+// 显示导航应用选择器
+function showNavigationSelector(attractionName, query, isIOS, isAndroid) {
+  // 创建模态框
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    padding: 20px;
+    box-sizing: border-box;
+  `;
+  
+  // 创建选择器内容
+  const content = document.createElement('div');
+  content.style.cssText = `
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    max-width: 400px;
+    width: 100%;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  `;
+  
+  // 标题
+  const title = document.createElement('h3');
+  title.textContent = `选择导航应用`;
+  title.style.cssText = `
+    margin: 0 0 15px 0;
+    color: #333;
+    text-align: center;
+    font-size: 18px;
+  `;
+  
+  // 景点信息
+  const info = document.createElement('p');
+  info.textContent = `导航到: ${attractionName}`;
+  info.style.cssText = `
+    margin: 0 0 20px 0;
+    color: #666;
+    text-align: center;
+    font-size: 14px;
+  `;
+  
+  // 按钮容器
+  const buttonContainer = document.createElement('div');
+  buttonContainer.style.cssText = `
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  `;
+  
+  // 定义导航选项
+  const navigationOptions = [];
+  
+  if (isIOS) {
+    navigationOptions.push(
+      {
+        name: 'Apple 地图',
+        icon: '🗺️',
+        url: `maps://maps.apple.com/?q=${encodeURIComponent(query)}&dirflg=d`,
+        color: '#007AFF'
+      },
+      {
+        name: 'Google 地图',
+        icon: '🌍',
+        url: `comgooglemaps://?q=${encodeURIComponent(query)}&directionsmode=driving`,
+        fallback: `https://maps.google.com/maps?q=${encodeURIComponent(query)}&navigate=yes`,
+        color: '#4285F4'
+      },
+      {
+        name: '高德地图',
+        icon: '🧭',
+        url: `iosamap://navi?sourceApplication=Travenion&poiname=${encodeURIComponent(attractionName)}&poiid=BGVIS&lat=&lon=&dev=0&style=2`,
+        fallback: `https://uri.amap.com/navigation?to=${encodeURIComponent(query)}`,
+        color: '#00C853'
+      },
+      {
+        name: '百度地图',
+        icon: '📍',
+        url: `baidumap://map/direction?destination=${encodeURIComponent(query)}&mode=driving`,
+        fallback: `https://map.baidu.com/?qt=nav&tn=H_APP&c=1&sc=1&ec=1&sn=0&en=0&rn=${encodeURIComponent(query)}`,
+        color: '#3F51B5'
+      }
+    );
+  } else if (isAndroid) {
+    navigationOptions.push(
+      {
+        name: 'Google 地图',
+        icon: '🌍',
+        url: `google.navigation:q=${encodeURIComponent(query)}`,
+        fallback: `https://maps.google.com/maps?q=${encodeURIComponent(query)}&navigate=yes`,
+        color: '#4285F4'
+      },
+      {
+        name: '高德地图',
+        icon: '🧭',
+        url: `androidamap://navi?sourceApplication=Travenion&poiname=${encodeURIComponent(attractionName)}&lat=&lon=&dev=0&style=2`,
+        fallback: `https://uri.amap.com/navigation?to=${encodeURIComponent(query)}`,
+        color: '#00C853'
+      },
+      {
+        name: '百度地图',
+        icon: '📍',
+        url: `bdapp://map/direction?destination=${encodeURIComponent(query)}&mode=driving`,
+        fallback: `https://map.baidu.com/?qt=nav&tn=H_APP&c=1&sc=1&ec=1&sn=0&en=0&rn=${encodeURIComponent(query)}`,
+        color: '#3F51B5'
+      }
+    );
   }
   
-  // PC端或其他设备：直接打开Google Maps网页版
-  navigationUrl = `https://maps.google.com/maps?q=${encodeURIComponent(query)}&navigate=yes`;
-  window.open(navigationUrl, '_blank');
+  // 添加网页版选项
+  navigationOptions.push({
+    name: '网页版地图',
+    icon: '💻',
+    url: `https://maps.google.com/maps?q=${encodeURIComponent(query)}&navigate=yes`,
+    color: '#757575'
+  });
   
-  // 显示成功提示
-  showNotification(`正在为您导航到: ${attractionName}`, 'success');
+  // 创建导航按钮
+  navigationOptions.forEach(option => {
+    const button = document.createElement('button');
+    button.innerHTML = `${option.icon} ${option.name}`;
+    button.style.cssText = `
+      padding: 15px;
+      border: none;
+      border-radius: 8px;
+      background: ${option.color};
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    `;
+    
+    button.addEventListener('click', () => {
+      document.body.removeChild(modal);
+      
+      if (option.fallback) {
+        // 尝试打开应用，失败则使用网页版
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = option.url;
+        document.body.appendChild(iframe);
+        
+        setTimeout(() => {
+          document.body.removeChild(iframe);
+          window.open(option.fallback, '_blank');
+        }, 1500);
+      } else {
+        // 直接打开
+        if (option.url.startsWith('http')) {
+          window.open(option.url, '_blank');
+        } else {
+          window.location.href = option.url;
+        }
+      }
+      
+      showNotification(`正在使用${option.name}导航到: ${attractionName}`, 'success');
+    });
+    
+    // 悬停效果
+    button.addEventListener('mouseover', () => {
+      button.style.opacity = '0.8';
+    });
+    
+    button.addEventListener('mouseout', () => {
+      button.style.opacity = '1';
+    });
+    
+    buttonContainer.appendChild(button);
+  });
+  
+  // 取消按钮
+  const cancelButton = document.createElement('button');
+  cancelButton.textContent = '取消';
+  cancelButton.style.cssText = `
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: white;
+    color: #666;
+    font-size: 16px;
+    cursor: pointer;
+    margin-top: 10px;
+  `;
+  
+  cancelButton.addEventListener('click', () => {
+    document.body.removeChild(modal);
+  });
+  
+  // 组装模态框
+  content.appendChild(title);
+  content.appendChild(info);
+  content.appendChild(buttonContainer);
+  content.appendChild(cancelButton);
+  modal.appendChild(content);
+  
+  // 点击背景关闭
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      document.body.removeChild(modal);
+    }
+  });
+  
+  // 显示模态框
+  document.body.appendChild(modal);
 }
 
 // 更新粘贴按钮状态
