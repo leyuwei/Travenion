@@ -55,14 +55,29 @@ router.post('/day/:dayId', async (req, res) => {
   try {
     const { name, address, description, estimatedDuration, notes } = req.body;
     
-    // 验证用户权限
-    const day = await PlanDay.findOne({
+    // 首先检查是否是计划所有者
+    let day = await PlanDay.findOne({
       where: { id: req.params.dayId },
       include: [{
         model: TravelPlan,
         where: { userId: req.user.id }
       }]
     });
+    
+    // 如果不是所有者，检查是否有分享权限
+    if (!day) {
+      day = await PlanDay.findOne({
+        where: { id: req.params.dayId },
+        include: [{
+          model: TravelPlan,
+          include: [{
+            model: PlanShare,
+            as: 'shares',
+            where: { sharedWithUserId: req.user.id }
+          }]
+        }]
+      });
+    }
     
     if (!day) {
       return res.status(404).json({ message: '未找到行程日' });
@@ -121,8 +136,8 @@ router.put('/:id', async (req, res) => {
   try {
     const { name, address, description, estimatedDuration, notes, latitude, longitude } = req.body;
     
-    // 验证用户权限
-    const attraction = await Attraction.findOne({
+    // 首先检查是否是计划所有者
+    let attraction = await Attraction.findOne({
       where: { id: req.params.id },
       include: [{
         model: PlanDay,
@@ -132,6 +147,24 @@ router.put('/:id', async (req, res) => {
         }]
       }]
     });
+    
+    // 如果不是所有者，检查是否有分享权限
+    if (!attraction) {
+      attraction = await Attraction.findOne({
+        where: { id: req.params.id },
+        include: [{
+          model: PlanDay,
+          include: [{
+            model: TravelPlan,
+            include: [{
+              model: PlanShare,
+              as: 'shares',
+              where: { sharedWithUserId: req.user.id }
+            }]
+          }]
+        }]
+      });
+    }
     
     if (!attraction) {
       return res.status(404).json({ message: '未找到景点' });
@@ -180,8 +213,8 @@ router.put('/:id', async (req, res) => {
 // 删除景点
 router.delete('/:id', async (req, res) => {
   try {
-    // 验证用户权限
-    const attraction = await Attraction.findOne({
+    // 首先检查是否是计划所有者
+    let attraction = await Attraction.findOne({
       where: { id: req.params.id },
       include: [{
         model: PlanDay,
@@ -191,6 +224,24 @@ router.delete('/:id', async (req, res) => {
         }]
       }]
     });
+    
+    // 如果不是所有者，检查是否有分享权限
+    if (!attraction) {
+      attraction = await Attraction.findOne({
+        where: { id: req.params.id },
+        include: [{
+          model: PlanDay,
+          include: [{
+            model: TravelPlan,
+            include: [{
+              model: PlanShare,
+              as: 'shares',
+              where: { sharedWithUserId: req.user.id }
+            }]
+          }]
+        }]
+      });
+    }
     
     if (!attraction) {
       return res.status(404).json({ message: '未找到景点' });

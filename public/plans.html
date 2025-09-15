@@ -24,7 +24,7 @@
       </div>
     </nav>
 
-    <!-- 页面标题 -->
+    <!-- 我的旅游计划区域 -->
     <div class="card fade-in">
       <div class="card-header">
         <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -37,19 +37,17 @@
           </button>
         </div>
       </div>
-    </div>
-
-    <!-- 计划列表 -->
-    <div id="planListContainer" class="fade-in">
-      <div id="emptyState" style="display: none; text-align: center; padding: 60px 20px;">
-        <div style="font-size: 4rem; margin-bottom: 20px;">✈️</div>
-        <h3 style="color: #6b7280; margin-bottom: 10px;">还没有旅行计划</h3>
-        <p style="color: #9ca3af;">创建您的第一个旅行计划，开始规划美好的旅程吧！</p>
-        <button class="btn btn-primary" onclick="document.getElementById('newPlanBtn').click()">
-          创建第一个计划
-        </button>
+      <div class="card-body" id="planListContainer">
+        <div id="emptyState" style="display: none; text-align: center; padding: 40px 20px;">
+          <div style="font-size: 4rem; margin-bottom: 20px;">✈️</div>
+          <h3 style="color: #6b7280; margin-bottom: 10px;">还没有旅行计划</h3>
+          <p style="color: #9ca3af;">创建您的第一个旅行计划，开始规划美好的旅程吧！</p>
+          <button class="btn btn-primary" onclick="document.getElementById('newPlanBtn').click()">
+            创建第一个计划
+          </button>
+        </div>
+        <div id="planGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px;"></div>
       </div>
-      <div id="planGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px;"></div>
     </div>
 
     <!-- 分享给我的计划 -->

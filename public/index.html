@@ -20,33 +20,39 @@
     </nav>
 
     <!-- 主要内容 -->
-    <div class="hero-section" style="text-align: center; padding: 60px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 20px; margin-bottom: 40px; color: white;">
-      <div style="max-width: 600px; margin: 0 auto;">
-        <h1 style="font-size: 3rem; font-weight: 700; margin-bottom: 20px; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">欢迎使用 Travenion</h1>
-        <p style="font-size: 1.2rem; margin-bottom: 40px; opacity: 0.9;">智能旅行计划管理平台，让您的旅行更加精彩</p>
+    <div class="hero-section" style="text-align: center; padding: 80px 20px; background: linear-gradient(135deg, #1e3a8a 0%, #3730a3 50%, #581c87 100%); border-radius: 24px; margin-bottom: 40px; color: white; position: relative; overflow: hidden;">
+      <!-- 装饰性背景元素 -->
+      <div style="position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px); background-size: 50px 50px; animation: float 20s infinite linear; pointer-events: none;"></div>
+      <div style="position: absolute; top: 20px; right: 20px; width: 100px; height: 100px; background: radial-gradient(circle, rgba(255,255,255,0.1), transparent); border-radius: 50%; animation: pulse 3s infinite;"></div>
+      <div style="position: absolute; bottom: 30px; left: 30px; width: 60px; height: 60px; background: radial-gradient(circle, rgba(255,255,255,0.08), transparent); border-radius: 50%; animation: pulse 4s infinite;"></div>
+      
+      <div style="max-width: 600px; margin: 0 auto; position: relative; z-index: 1;">
+        <h1 style="font-size: 3.5rem; font-weight: 800; margin-bottom: 24px; text-shadow: 0 4px 20px rgba(0,0,0,0.3); background: linear-gradient(135deg, #ffffff 0%, #e0e7ff 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">欢迎使用 Travenion</h1>
+        <p style="font-size: 1.3rem; margin-bottom: 50px; color: rgba(255,255,255,0.95); text-shadow: 0 2px 10px rgba(0,0,0,0.2); font-weight: 500; line-height: 1.6;">智能旅行计划管理平台，让您的旅行更加精彩</p>
         
         <!-- 登录表单 -->
-        <div class="card" style="max-width: 400px; margin: 0 auto; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px);">
-          <div class="card-header">
-            <h2 class="card-title" style="color: #1f2937; margin: 0;">登录账户</h2>
+        <div class="card" style="max-width: 420px; margin: 0 auto; background: rgba(255,255,255,0.98); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.3); box-shadow: 0 20px 40px rgba(0,0,0,0.1), 0 0 0 1px rgba(255,255,255,0.1); border-radius: 20px; padding: 40px 35px;">
+          <div class="card-header" style="border: none; padding: 0; margin-bottom: 30px; text-align: center;">
+            <h2 class="card-title" style="color: #1f2937; margin: 0; font-size: 1.8rem; font-weight: 700; background: linear-gradient(135deg, #1f2937 0%, #4f46e5 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">登录账户</h2>
+            <p style="color: #6b7280; margin: 8px 0 0 0; font-size: 14px;">开始您的精彩旅程</p>
           </div>
-          <div class="card-body">
+          <div class="card-body" style="padding: 0;">
             <form id="loginForm">
-              <div class="form-group">
-                <label class="form-label">用户名</label>
-                <input type="text" class="form-control" name="username" placeholder="请输入用户名" required>
+              <div class="form-group" style="margin-bottom: 24px;">
+                <label class="form-label" style="color: #374151; font-weight: 600; margin-bottom: 8px;">用户名</label>
+                <input type="text" class="form-control" name="username" placeholder="请输入用户名" required style="padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 15px; transition: all 0.3s ease; background: rgba(255,255,255,0.8);">
               </div>
-              <div class="form-group">
-                <label class="form-label">密码</label>
-                <input type="password" class="form-control" name="password" placeholder="请输入密码" required>
+              <div class="form-group" style="margin-bottom: 30px;">
+                <label class="form-label" style="color: #374151; font-weight: 600; margin-bottom: 8px;">密码</label>
+                <input type="password" class="form-control" name="password" placeholder="请输入密码" required style="padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 15px; transition: all 0.3s ease; background: rgba(255,255,255,0.8);">
               </div>
-              <button type="submit" class="btn btn-primary" style="width: 100%; margin-bottom: 15px;">
+              <button type="submit" class="btn btn-primary" style="width: 100%; margin-bottom: 20px; padding: 16px; font-size: 16px; font-weight: 700; border-radius: 12px; background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); border: none; box-shadow: 0 4px 15px rgba(79, 70, 229, 0.4); transition: all 0.3s ease;">
                 <span class="login-text">登录</span>
                 <span class="loading" style="display: none;"></span>
               </button>
               <div style="text-align: center;">
-                <span style="color: #6b7280;">还没有账户？</span>
-                <button type="button" id="showRegisterBtn" class="btn btn-link" style="padding: 0; margin-left: 5px;">立即注册</button>
+                <span style="color: #6b7280; font-size: 14px;">还没有账户？</span>
+                <button type="button" id="showRegisterBtn" class="btn btn-link" style="padding: 0; margin-left: 8px; color: #4f46e5; font-weight: 600; text-decoration: none; font-size: 14px;">立即注册</button>
               </div>
             </form>
           </div>

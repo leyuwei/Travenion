@@ -31,7 +31,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     permission: {
       type: DataTypes.ENUM('view', 'edit'),
-      defaultValue: 'view'
+      defaultValue: 'edit'
     },
     sharedAt: {
       type: DataTypes.DATE,

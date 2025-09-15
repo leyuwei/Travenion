@@ -817,56 +817,27 @@ function renderFiles() {
       <!-- 操作按钮区域 -->
       <div style="
         display: flex;
-        justify-content: center;
-        gap: 12px;
+        justify-content: stretch;
+        gap: 8px;
         padding-top: 16px;
         border-top: 1px solid #f1f5f9;
       ">
-        ${canPreviewFile(file.filename) ? `
-          <button onclick="previewFile(${file.id})" style="
-            background: linear-gradient(135deg, #10b981, #059669);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            padding: 10px 16px;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.39);
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            min-width: 80px;
-            justify-content: center;
-          " title="预览文件" onmouseover="
-            this.style.transform='translateY(-2px)';
-            this.style.boxShadow='0 6px 20px 0 rgba(16, 185, 129, 0.5)';
-          " onmouseout="
-            this.style.transform='translateY(0)';
-            this.style.boxShadow='0 4px 14px 0 rgba(16, 185, 129, 0.39)';
-          ">
-            <i class="fas fa-eye" style="font-size: 11px;"></i>
-            <span>预览</span>
-          </button>
-        ` : ''}
-        
         <button onclick="downloadFile(${file.id})" style="
           background: linear-gradient(135deg, #3b82f6, #1d4ed8);
           color: white;
           border: none;
-          border-radius: 10px;
-          padding: 10px 16px;
-          font-size: 12px;
+          border-radius: 12px;
+          padding: 14px;
+          font-size: 16px;
           font-weight: 600;
           cursor: pointer;
           transition: all 0.3s ease;
           box-shadow: 0 4px 14px 0 rgba(59, 130, 246, 0.39);
           display: flex;
           align-items: center;
-          gap: 6px;
-          min-width: 80px;
           justify-content: center;
+          flex: 1;
+          min-height: 48px;
         " title="下载文件" onmouseover="
           this.style.transform='translateY(-2px)';
           this.style.boxShadow='0 6px 20px 0 rgba(59, 130, 246, 0.5)';
@@ -874,26 +845,25 @@ function renderFiles() {
           this.style.transform='translateY(0)';
           this.style.boxShadow='0 4px 14px 0 rgba(59, 130, 246, 0.39)';
         ">
-          <i class="fas fa-download" style="font-size: 11px;"></i>
-          <span>下载</span>
+          <i class="fas fa-download"></i>
         </button>
         
         <button onclick="editFileDescription(${file.id})" style="
           background: linear-gradient(135deg, #f59e0b, #d97706);
           color: white;
           border: none;
-          border-radius: 10px;
-          padding: 10px 16px;
-          font-size: 12px;
+          border-radius: 12px;
+          padding: 14px;
+          font-size: 16px;
           font-weight: 600;
           cursor: pointer;
           transition: all 0.3s ease;
           box-shadow: 0 4px 14px 0 rgba(245, 158, 11, 0.39);
           display: flex;
           align-items: center;
-          gap: 6px;
-          min-width: 80px;
           justify-content: center;
+          flex: 1;
+          min-height: 48px;
         " title="编辑描述" onmouseover="
           this.style.transform='translateY(-2px)';
           this.style.boxShadow='0 6px 20px 0 rgba(245, 158, 11, 0.5)';
@@ -901,26 +871,25 @@ function renderFiles() {
           this.style.transform='translateY(0)';
           this.style.boxShadow='0 4px 14px 0 rgba(245, 158, 11, 0.39)';
         ">
-          <i class="fas fa-edit" style="font-size: 11px;"></i>
-          <span>编辑</span>
+          <i class="fas fa-edit"></i>
         </button>
         
         <button onclick="deleteFile(${file.id})" style="
           background: linear-gradient(135deg, #ef4444, #dc2626);
           color: white;
           border: none;
-          border-radius: 10px;
-          padding: 10px 16px;
-          font-size: 12px;
+          border-radius: 12px;
+          padding: 14px;
+          font-size: 16px;
           font-weight: 600;
           cursor: pointer;
           transition: all 0.3s ease;
           box-shadow: 0 4px 14px 0 rgba(239, 68, 68, 0.39);
           display: flex;
           align-items: center;
-          gap: 6px;
-          min-width: 80px;
           justify-content: center;
+          flex: 1;
+          min-height: 48px;
         " title="删除文件" onmouseover="
           this.style.transform='translateY(-2px)';
           this.style.boxShadow='0 6px 20px 0 rgba(239, 68, 68, 0.5)';
@@ -928,8 +897,7 @@ function renderFiles() {
           this.style.transform='translateY(0)';
           this.style.boxShadow='0 4px 14px 0 rgba(239, 68, 68, 0.39)';
         ">
-          <i class="fas fa-trash" style="font-size: 11px;"></i>
-          <span>删除</span>
+          <i class="fas fa-trash"></i>
         </button>
       </div>
     </div>
@@ -1693,7 +1661,7 @@ async function shareWithUser(username) {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ username, permission: 'view' })
+      body: JSON.stringify({ username, permission: 'edit' })
     });
     
     if (response.ok) {
@@ -1802,9 +1770,16 @@ async function downloadFile(fileId) {
     const contentDisposition = response.headers.get('content-disposition');
     let filename = 'download';
     if (contentDisposition) {
-      const filenameMatch = contentDisposition.match(/filename="(.+)"/i);
-      if (filenameMatch) {
-        filename = filenameMatch[1];
+      // 优先解析 filename*=UTF-8''... 格式（支持中文）
+      const filenameStarMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+      if (filenameStarMatch) {
+        filename = decodeURIComponent(filenameStarMatch[1]);
+      } else {
+        // 回退到普通 filename="..." 格式
+        const filenameMatch = contentDisposition.match(/filename="(.+)"/i);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
       }
     }
     

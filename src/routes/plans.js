@@ -7,13 +7,136 @@ const auth = require('../middleware/auth');
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
 
+// 分享页面路由（无需认证）
+// 获取分享的计划
+router.get('/shared/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    // 通过分享令牌查找计划
+    const plan = await TravelPlan.findOne({
+      where: { shareToken: token },
+      include: ['days', 'files']
+    });
+    
+    if (!plan) {
+      return res.status(404).json({ message: '计划不存在或已停止分享' });
+    }
+    
+    res.json(plan);
+  } catch (error) {
+    console.error('获取分享计划失败:', error);
+    res.status(500).json({ message: '获取分享计划失败' });
+  }
+});
 
+// 获取分享计划的天数
+router.get('/shared/:token/days', async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    const plan = await TravelPlan.findOne({
+      where: { shareToken: token },
+      include: ['days']
+    });
+    
+    if (!plan) {
+      return res.status(404).json({ message: '计划不存在或已停止分享' });
+    }
+    
+    res.json(plan.days || []);
+  } catch (error) {
+    console.error('获取分享计划天数失败:', error);
+    res.status(500).json({ message: '获取分享计划天数失败' });
+  }
+});
 
+// 获取分享计划某天的景点
+router.get('/shared/:token/days/:dayId/attractions', async (req, res) => {
+  try {
+    const { token, dayId } = req.params;
+    
+    const plan = await TravelPlan.findOne({
+      where: { shareToken: token }
+    });
+    
+    if (!plan) {
+      return res.status(404).json({ message: '计划不存在或已停止分享' });
+    }
+    
+    const day = await PlanDay.findOne({
+      where: { id: dayId, planId: plan.id },
+      include: ['attractions']
+    });
+    
+    if (!day) {
+      return res.status(404).json({ message: '天数不存在' });
+    }
+    
+    res.json(day.attractions || []);
+  } catch (error) {
+    console.error('获取分享计划景点失败:', error);
+    res.status(500).json({ message: '获取分享计划景点失败' });
+  }
+});
 
+// 获取分享计划的文件
+router.get('/shared/:token/files', async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    const plan = await TravelPlan.findOne({
+      where: { shareToken: token }
+    });
+    
+    if (!plan) {
+      return res.status(404).json({ message: '计划不存在或已停止分享' });
+    }
+    
+    const files = await PlanFile.findAll({
+      where: { planId: plan.id },
+      order: [['createdAt', 'DESC']]
+    });
+    
+    res.json(files);
+  } catch (error) {
+    console.error('获取分享计划文件失败:', error);
+    res.status(500).json({ message: '获取分享计划文件失败' });
+  }
+});
 
-
-
-
+// 下载分享计划的文件
+router.get('/shared/:token/files/:fileId', async (req, res) => {
+  try {
+    const { token, fileId } = req.params;
+    
+    const plan = await TravelPlan.findOne({
+      where: { shareToken: token }
+    });
+    
+    if (!plan) {
+      return res.status(404).json({ message: '计划不存在或已停止分享' });
+    }
+    
+    const file = await PlanFile.findOne({
+      where: { id: fileId, planId: plan.id }
+    });
+    
+    if (!file) {
+      return res.status(404).json({ message: '文件未找到' });
+    }
+    
+    // 处理中文文件名编码，确保下载时文件名正确显示
+    const downloadFilename = file.originalName || file.filename;
+    const encodedFilename = encodeURIComponent(downloadFilename);
+    // 使用简化的Content-Disposition格式避免字符编码问题
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedFilename}`);
+    res.download(file.path, downloadFilename);
+  } catch (error) {
+    console.error('下载分享文件失败:', error);
+    res.status(500).json({ message: '下载分享文件失败' });
+  }
+});
 
 // 以下路由需要认证
 router.use(auth);
@@ -157,7 +280,7 @@ router.post('/:id/share', async (req, res) => {
     const plan = await TravelPlan.findOne({ where: { id: req.params.id, userId: req.user.id } });
     if (!plan) return res.status(404).json({ message: '未找到' });
     
-    const { username, userId, permission = 'view' } = req.body;
+    const { username, userId, permission = 'edit' } = req.body;
     
     let targetUser;
     if (username) {
@@ -358,9 +481,11 @@ router.get('/:id/files/:fileId', async (req, res) => {
     if (!file) return res.status(404).json({ message: '文件未找到' });
     
     // 处理中文文件名编码，确保下载时文件名正确显示
-    const encodedFilename = encodeURIComponent(file.filename);
+    const downloadFilename = file.originalName || file.filename;
+    const encodedFilename = encodeURIComponent(downloadFilename);
+    // 使用简化的Content-Disposition格式避免字符编码问题
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedFilename}`);
-    res.download(file.path, file.filename);
+    res.download(file.path, downloadFilename);
   } catch (e) {
     console.error('下载文件失败:', e);
     res.status(500).json({ message: '下载文件失败', error: e.message });
@@ -448,8 +573,24 @@ router.delete('/:id/files/:fileId', async (req, res) => {
 
 router.post('/:id/files', upload.single('file'), async (req, res) => {
   try {
-    const plan = await TravelPlan.findOne({ where: { id: req.params.id, userId: req.user.id } });
-    if (!plan) return res.status(404).json({ message: '未找到' });
+    // 首先检查是否是计划所有者
+    let plan = await TravelPlan.findOne({ where: { id: req.params.id, userId: req.user.id } });
+    
+    // 如果不是所有者，检查是否有分享权限
+    if (!plan) {
+      const share = await PlanShare.findOne({
+        where: {
+          planId: req.params.id,
+          sharedWithUserId: req.user.id
+        }
+      });
+      
+      if (share) {
+        plan = await TravelPlan.findOne({ where: { id: req.params.id } });
+      }
+    }
+    
+    if (!plan) return res.status(404).json({ message: '未找到计划' });
     
     // 处理中文文件名编码
     const originalname = Buffer.from(req.file.originalname, 'latin1').toString('utf8');

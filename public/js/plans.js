@@ -204,8 +204,8 @@ function renderSharedPlans() {
         <p style="color: #6b7280; margin: 0; font-size: 14px;">${plan.description || '暂无描述'}</p>
         <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px;">
           <span style="font-size: 12px; color: #059669;">👤 ${sharedBy.username} 分享</span>
-          <span class="badge badge-outline-${permission === 'edit' ? 'primary' : 'secondary'}" style="font-size: 11px;">
-            ${permission === 'edit' ? '可编辑' : '仅查看'}
+          <span class="badge badge-outline-primary" style="font-size: 11px;">
+            可编辑
           </span>
         </div>
       </div>

@@ -277,7 +277,7 @@ function renderDays() {
           </div>
         </div>
         <div style="background: #f3f4f6; color: #6b7280; padding: 4px 8px; border-radius: 6px; font-size: 12px;">
-          只读模式
+          可编辑
         </div>
       </div>
       
@@ -382,9 +382,16 @@ async function downloadFile(fileId) {
     const contentDisposition = response.headers.get('content-disposition');
     let filename = 'download';
     if (contentDisposition) {
-      const filenameMatch = contentDisposition.match(/filename="(.+)"/i);
-      if (filenameMatch) {
-        filename = filenameMatch[1];
+      // 优先解析 filename*=UTF-8''... 格式（支持中文）
+      const filenameStarMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+      if (filenameStarMatch) {
+        filename = decodeURIComponent(filenameStarMatch[1]);
+      } else {
+        // 回退到普通 filename="..." 格式
+        const filenameMatch = contentDisposition.match(/filename="(.+)"/i);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
       }
     }
     
