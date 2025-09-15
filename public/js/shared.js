@@ -650,12 +650,8 @@ function initMapControls() {
   
   // 添加其他按钮的事件监听器
   const refreshBtn = document.getElementById('refreshMapBtn');
-  const showRouteBtn = document.getElementById('showRouteBtn');
-  const clearRouteBtn = document.getElementById('clearRouteBtn');
   
   if (refreshBtn) refreshBtn.onclick = refreshMap;
-  if (showRouteBtn) showRouteBtn.onclick = showRoute;
-  if (clearRouteBtn) clearRouteBtn.onclick = clearRoute;
 }
 
 // 切换地图提供商
@@ -812,6 +808,4 @@ document.addEventListener('DOMContentLoaded', () => {
 // 全局暴露函数供HTML调用
 window.switchMapProvider = switchMapProvider;
 window.refreshMap = refreshMap;
-window.showRoute = showRoute;
-window.clearRoute = clearRoute;
 window.downloadFile = downloadFile;

@@ -187,6 +187,8 @@ body {
   background: transparent;
   border: 2px solid var(--primary-color);
   color: var(--primary-color);
+  padding: 8px 16px;
+  font-size: 14px;
 }
 
 .btn-outline:hover {
@@ -346,34 +348,128 @@ body {
 /* 地图控制按钮 */
 .map-controls {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: center;
   justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .map-controls .btn-group {
   display: flex;
   gap: 0;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  padding: 2px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .map-controls .btn-group .btn {
-  border-radius: 0;
-  border-right: none;
+  border-radius: 6px;
+  border: none;
+  margin: 0;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  background: transparent;
+  color: var(--text-secondary);
 }
 
-.map-controls .btn-group .btn:first-child {
-  border-top-left-radius: var(--border-radius);
-  border-bottom-left-radius: var(--border-radius);
+.map-controls .btn-group .btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
 }
 
-.map-controls .btn-group .btn:last-child {
-  border-top-right-radius: var(--border-radius);
-  border-bottom-right-radius: var(--border-radius);
-  border-right: 1px solid var(--border-color);
+.map-controls .btn-group .btn.btn-primary {
+  background: var(--primary-color);
+  color: white;
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+}
+
+.map-controls .btn-group .btn.btn-primary:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(59, 130, 246, 0.4);
 }
 
 .map-controls .ms-2 {
-  margin-left: 10px;
+  margin-left: 12px;
+}
+
+/* 浮动小地图 */
+.floating-mini-map {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 300px;
+  height: 200px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  backdrop-filter: blur(10px);
+  animation: slideInFromRight 0.3s ease-out;
+}
+
+.mini-map-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mini-map-title {
+  color: var(--text-primary);
+}
+
+.mini-map-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  font-size: 12px;
+}
+
+.mini-map-close:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.mini-map-container {
+  width: 100%;
+  height: calc(100% - 40px);
+  position: relative;
+}
+
+@keyframes slideInFromRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .floating-mini-map {
+    width: calc(100vw - 40px);
+    height: 150px;
+    top: 10px;
+    right: 20px;
+    left: 20px;
+  }
 }
 
 /* 文件上传区域 */
@@ -520,18 +616,26 @@ body {
   
   .map-controls {
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
+    align-items: stretch;
   }
   
   .map-controls .btn-group {
-    flex-direction: column;
+    flex-direction: row;
     width: 100%;
+    justify-content: center;
   }
   
-  .map-controls .btn {
-    width: 100%;
-    margin: 0;
-    border-radius: 4px !important;
+  .map-controls .btn-group .btn {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+  
+  .map-controls .ms-2 {
+    margin-left: 0;
+    margin-top: 8px;
   }
   
   .day-card {

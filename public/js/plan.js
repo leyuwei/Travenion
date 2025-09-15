@@ -567,6 +567,9 @@ function renderDays() {
           </div>
         </div>
         <div style="display: flex; gap: 10px;">
+          <button class="btn btn-info paste-btn" onclick="pasteAttraction(${day.id})" style="padding: 8px 12px; font-size: 14px; ${copiedAttraction ? 'background: #17a2b8; color: white; border: 1px solid #17a2b8;' : 'background: #e9ecef; color: #6c757d; border: 1px solid #dee2e6; cursor: not-allowed;'}" title="${copiedAttraction ? `粘贴景点: ${copiedAttraction.name}` : '剪贴板为空'}">
+            <i class="fas fa-paste"></i> 粘贴${copiedAttraction ? ` (${copiedAttraction.name})` : ''}
+          </button>
           <button class="btn btn-outline" onclick="editDay(${day.id})" style="padding: 8px 12px; font-size: 14px;">编辑</button>
           <button class="btn btn-danger" onclick="deleteDay(${day.id})" style="padding: 8px 12px; font-size: 14px;">删除</button>
         </div>
@@ -584,13 +587,19 @@ function renderDays() {
         ${day.attractionsList && day.attractionsList.length > 0 ? `
           <div style="margin-top: 8px;">
             ${day.attractionsList.map((attraction, index) => `
-              <div class="main-attraction-item" data-attraction-name="${attraction.name.replace(/"/g, '&quot;')}" style="display: flex; align-items: center; padding: 8px; margin-bottom: 6px; background: #f8fafc; border-radius: 6px; border-left: 3px solid #3b82f6; cursor: pointer; transition: all 0.2s ease;">
+              <div class="main-attraction-item" data-attraction-name="${attraction.name.replace(/"/g, '&quot;')}" style="display: flex; align-items: center; padding: 8px; margin-bottom: 6px; background: #f8fafc; border-radius: 6px; border-left: 3px solid #3b82f6; transition: all 0.2s ease;">
                 <span style="background: #3b82f6; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 12px; margin-right: 10px; flex-shrink: 0;">${index + 1}</span>
-                <div style="flex: 1; min-width: 0;">
+                <div class="attraction-clickable" style="flex: 1; min-width: 0; cursor: pointer;">
                   <div style="font-weight: 500; color: #1f2937; margin-bottom: 2px;">${attraction.name} <span style="color: #3b82f6; font-size: 12px;">📍 点击查看</span></div>
                   ${attraction.description ? `<div style="color: #6b7280; font-size: 13px; margin-bottom: 2px;">${attraction.description}</div>` : ''}
                   ${attraction.address ? `<div style="color: #9ca3af; font-size: 12px;"><i class="fas fa-map-marker-alt"></i> ${attraction.address}</div>` : ''}
                 </div>
+                <button type="button" onclick="copyMainAttraction(${day.id}, ${index})" style="background: #17a2b8; color: white; border: none; border-radius: 4px; padding: 4px 6px; font-size: 11px; cursor: pointer; margin-left: 8px; flex-shrink: 0;" title="复制景点">
+                  <i class="fas fa-copy"></i>
+                </button>
+                <button type="button" onclick="navigateToAttraction('${attraction.name.replace(/'/g, '\\\'')}', '${attraction.address ? attraction.address.replace(/'/g, '\\\'') : ''}')" style="background: #28a745; color: white; border: none; border-radius: 4px; padding: 4px 6px; font-size: 11px; cursor: pointer; margin-left: 4px; flex-shrink: 0;" title="导航到此地点">
+                  <i class="fas fa-directions"></i>
+                </button>
               </div>
             `).join('')}
           </div>
@@ -608,20 +617,23 @@ function renderDays() {
   setTimeout(() => {
     const mainAttractionItems = document.querySelectorAll('.main-attraction-item');
     mainAttractionItems.forEach(item => {
-      item.addEventListener('click', () => {
-        const attractionName = item.getAttribute('data-attraction-name');
-        highlightAttractionOnMap(attractionName);
-      });
-      
-      // 添加悬停效果
-      item.addEventListener('mouseover', () => {
-        item.style.backgroundColor = '#e0f2fe';
-        item.style.transform = 'translateX(4px)';
-      });
-      item.addEventListener('mouseout', () => {
-        item.style.backgroundColor = '#f8fafc';
-        item.style.transform = 'translateX(0)';
-      });
+      const clickableDiv = item.querySelector('.attraction-clickable');
+      if (clickableDiv) {
+        clickableDiv.addEventListener('click', () => {
+          const attractionName = item.getAttribute('data-attraction-name');
+          highlightAttractionOnMap(attractionName);
+        });
+        
+        // 添加悬停效果
+        clickableDiv.addEventListener('mouseover', () => {
+          item.style.backgroundColor = '#e0f2fe';
+          item.style.transform = 'translateX(4px)';
+        });
+        clickableDiv.addEventListener('mouseout', () => {
+          item.style.backgroundColor = '#f8fafc';
+          item.style.transform = 'translateX(0)';
+        });
+      }
     });
   }, 0);
 }
@@ -1191,6 +1203,26 @@ function highlightAttractionOnMap(attractionName) {
     setTimeout(() => {
       marker.openPopup();
     }, 500);
+    
+    // 如果浮动小地图可见，也同步更新小地图视图
+    if (miniMap && isFloatingMapVisible) {
+      const newZoom = Math.max(16 - 2, 1);
+      miniMap.setView(coordinates, newZoom);
+      
+      // 在小地图上也高亮显示对应的标记
+      setTimeout(() => {
+        miniMap.eachLayer(layer => {
+          if (layer instanceof L.Marker) {
+            const layerLatLng = layer.getLatLng();
+            if (Math.abs(layerLatLng.lat - coordinates[0]) < 0.0001 && 
+                Math.abs(layerLatLng.lng - coordinates[1]) < 0.0001) {
+              layer.openPopup();
+            }
+          }
+        });
+      }, 300);
+    }
+    
   } else if (mapProvider === 'baidu') {
     // 百度地图: 设置中心点并打开信息窗口
     const point = new BMap.Point(coordinates[1], coordinates[0]); // 注意百度地图坐标顺序
@@ -1200,6 +1232,27 @@ function highlightAttractionOnMap(attractionName) {
         map.openInfoWindow(marker.infoWindow, point);
       }
     }, 500);
+    
+    // 如果浮动小地图可见，也同步更新小地图视图
+    if (miniMap && isFloatingMapVisible) {
+      const newZoom = Math.max(16 - 2, 3);
+      miniMap.centerAndZoom(point, newZoom);
+      
+      // 在小地图上也高亮显示对应的标记
+      setTimeout(() => {
+        const overlays = miniMap.getOverlays();
+        overlays.forEach(overlay => {
+          if (overlay instanceof BMap.Marker) {
+            const overlayPoint = overlay.getPosition();
+            if (Math.abs(overlayPoint.lat - coordinates[0]) < 0.0001 && 
+                Math.abs(overlayPoint.lng - coordinates[1]) < 0.0001) {
+              const infoWindow = new BMap.InfoWindow(`<strong>${attractionName}</strong>`);
+              miniMap.openInfoWindow(infoWindow, overlayPoint);
+            }
+          }
+        });
+      }, 300);
+    }
   }
   
   console.log(`地图聚焦到景点: ${attractionName}`);
@@ -1381,7 +1434,7 @@ function renderUsersList(users) {
         <span style="font-weight: 500; color: #1f2937;">${user.username}</span>
         <small style="color: #6b7280; margin-left: 8px;">${user.email}</small>
       </div>
-      <button type="button" class="btn btn-sm btn-primary" onclick="shareWithUser('${user.username}')">
+      <button type="button" class="btn btn-primary" onclick="shareWithUser('${user.username}')" style="font-size: 12px; padding: 6px 8px;">
         <i class="fas fa-share"></i> 分享
       </button>
     `;
@@ -1571,7 +1624,7 @@ async function loadSharedUsers() {
               <small style="color: #6b7280; margin-left: 8px;">${share.sharedWithUser.email}</small>
               <span style="color: #059669; margin-left: 8px; font-size: 12px;">${share.permission}</span>
             </div>
-            <button class="btn btn-sm btn-outline-danger" onclick="removeShare('${share.sharedWithUser.username}')">
+            <button class="btn btn-danger" onclick="removeShare('${share.sharedWithUser.username}')" style="font-size: 12px; padding: 6px 8px;">
               <i class="fas fa-times"></i> 移除
             </button>
           </div>
@@ -1644,6 +1697,23 @@ function switchMapProvider(provider) {
     map = null;
   }
   
+  // 清理小地图
+  if (miniMap) {
+    try {
+      if (mapProvider === 'openstreetmap') {
+        miniMap.remove();
+      } else if (mapProvider === 'baidu') {
+        const container = document.getElementById('miniMapContainer');
+        if (container) {
+          container.innerHTML = '';
+        }
+      }
+    } catch (error) {
+      console.warn('清理小地图时出错:', error);
+    }
+    miniMap = null;
+  }
+  
   // 清理路线和标记
   markers = [];
   polylines = [];
@@ -1658,7 +1728,15 @@ function switchMapProvider(provider) {
   initMapButtons();
   
   // 重新加载地图
-  loadMap();
+  loadMap().then(() => {
+    // 如果小地图当前可见，重新创建它
+    if (isFloatingMapVisible) {
+      const container = document.getElementById('miniMapContainer');
+      if (container) {
+        createMiniMap(container);
+      }
+    }
+  });
 }
 
 // 清除路线
@@ -1772,21 +1850,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
   
-  // 路线控制
-  const showRouteBtn = document.getElementById('showRouteBtn');
-  const clearRouteBtn = document.getElementById('clearRouteBtn');
-  
-  if (showRouteBtn) {
-    showRouteBtn.addEventListener('click', () => {
-      showRoute();
-    });
-  }
-  
-  if (clearRouteBtn) {
-    clearRouteBtn.addEventListener('click', () => {
-      clearRoute();
-    });
-  }
+  // 路线控制功能已移除
   
   // 添加行程按钮
   const addDayBtn = document.getElementById('addDayBtn');
@@ -2179,6 +2243,9 @@ function renderAttractionsList() {
         </button>
         ${index > 0 ? `<button type="button" onclick="moveAttractionUp(${index})" style="background: #6c757d; color: white; border: none; border-radius: 4px; padding: 5px 8px; font-size: 12px; cursor: pointer;"><i class="fas fa-arrow-up"></i></button>` : ''}
         ${index < currentDayAttractions.length - 1 ? `<button type="button" onclick="moveAttractionDown(${index})" style="background: #6c757d; color: white; border: none; border-radius: 4px; padding: 5px 8px; font-size: 12px; cursor: pointer;"><i class="fas fa-arrow-down"></i></button>` : ''}
+        <button type="button" onclick="copyAttraction(${index})" style="background: #17a2b8; color: white; border: none; border-radius: 4px; padding: 5px 8px; font-size: 12px; cursor: pointer;" title="复制景点">
+          <i class="fas fa-copy"></i>
+        </button>
       </div>
     `;
     
@@ -2203,6 +2270,9 @@ function renderAttractionsList() {
 // 景点编辑相关变量
 let currentEditingAttraction = null;
 let isEditingAttraction = false;
+
+// 景点剪贴板变量
+let copiedAttraction = null;
 
 // 添加景点项
 function addAttractionItem() {
@@ -2318,6 +2388,160 @@ function moveAttractionDown(index) {
   renderAttractionsList();
 }
 
+// 复制景点
+function copyAttraction(index) {
+  if (index < 0 || index >= currentDayAttractions.length) return;
+  
+  // 深拷贝景点信息
+  copiedAttraction = {
+    name: currentDayAttractions[index].name,
+    address: currentDayAttractions[index].address || '',
+    description: currentDayAttractions[index].description || ''
+  };
+  
+  showNotification(`已复制景点: ${copiedAttraction.name}`, 'success');
+  
+  // 更新粘贴按钮状态
+  updatePasteButtonsState();
+}
+
+// 从主页面复制景点
+function copyMainAttraction(dayId, attractionIndex) {
+  // 找到对应的行程日
+  const day = days.find(d => d.id === dayId);
+  if (!day || !day.attractionsList || attractionIndex < 0 || attractionIndex >= day.attractionsList.length) {
+    showNotification('景点信息无效', 'error');
+    return;
+  }
+  
+  // 深拷贝景点信息
+  copiedAttraction = {
+    name: day.attractionsList[attractionIndex].name,
+    address: day.attractionsList[attractionIndex].address || '',
+    description: day.attractionsList[attractionIndex].description || ''
+  };
+  
+  showNotification(`已复制景点: ${copiedAttraction.name}`, 'success');
+  
+  // 更新粘贴按钮状态
+  updatePasteButtonsState();
+}
+
+// 导航到景点功能
+function navigateToAttraction(attractionName, attractionAddress) {
+  // 构建搜索查询，优先使用地址，如果没有地址则使用景点名称
+  const query = attractionAddress || attractionName;
+  
+  // 检测设备类型
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isAndroid = /Android/.test(navigator.userAgent);
+  
+  let navigationUrl;
+  
+  if (isMobile) {
+    if (isIOS) {
+      // iOS设备：优先尝试Apple Maps，如果失败则使用Google Maps
+      navigationUrl = `maps://maps.apple.com/?q=${encodeURIComponent(query)}&dirflg=d`;
+      
+      // 尝试打开Apple Maps，如果失败则使用Google Maps
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = navigationUrl;
+      document.body.appendChild(iframe);
+      
+      // 延迟后移除iframe并尝试Google Maps作为备选
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+        // 如果Apple Maps没有响应，尝试Google Maps
+        const googleMapsUrl = `https://maps.google.com/maps?q=${encodeURIComponent(query)}&navigate=yes`;
+        window.open(googleMapsUrl, '_blank');
+      }, 1000);
+      
+      return;
+    } else if (isAndroid) {
+      // Android设备：使用Google Maps的intent URL
+      navigationUrl = `google.navigation:q=${encodeURIComponent(query)}`;
+      
+      // 尝试打开Google Maps应用
+      window.location.href = navigationUrl;
+      
+      // 如果应用没有安装，延迟后打开网页版
+      setTimeout(() => {
+        const webUrl = `https://maps.google.com/maps?q=${encodeURIComponent(query)}&navigate=yes`;
+        window.open(webUrl, '_blank');
+      }, 1500);
+      
+      return;
+    }
+  }
+  
+  // PC端或其他设备：直接打开Google Maps网页版
+  navigationUrl = `https://maps.google.com/maps?q=${encodeURIComponent(query)}&navigate=yes`;
+  window.open(navigationUrl, '_blank');
+  
+  // 显示成功提示
+  showNotification(`正在为您导航到: ${attractionName}`, 'success');
+}
+
+// 更新粘贴按钮状态
+function updatePasteButtonsState() {
+  const pasteButtons = document.querySelectorAll('.paste-btn');
+  pasteButtons.forEach(button => {
+    if (copiedAttraction) {
+      button.style.background = '#17a2b8';
+      button.style.color = 'white';
+      button.style.border = '1px solid #17a2b8';
+      button.style.cursor = 'pointer';
+      button.title = `粘贴景点: ${copiedAttraction.name}`;
+      button.innerHTML = `<i class="fas fa-paste"></i> 粘贴 (${copiedAttraction.name})`;
+    } else {
+      button.style.background = '#e9ecef';
+      button.style.color = '#6c757d';
+      button.style.border = '1px solid #dee2e6';
+      button.style.cursor = 'not-allowed';
+      button.title = '剪贴板为空';
+      button.innerHTML = '<i class="fas fa-paste"></i> 粘贴';
+    }
+  });
+}
+
+// 粘贴景点到指定行程日
+async function pasteAttraction(dayId) {
+  if (!copiedAttraction) {
+    showNotification('剪贴板为空，请先复制一个景点', 'warning');
+    return;
+  }
+  
+  try {
+    // 加载目标行程日的景点列表
+    await loadDayAttractions(dayId);
+    
+    // 添加复制的景点到列表末尾
+    currentDayAttractions.push({
+      name: copiedAttraction.name,
+      address: copiedAttraction.address,
+      description: copiedAttraction.description
+    });
+    
+    // 保存到服务器
+    await saveAttractions(dayId);
+    
+    showNotification(`已将景点 "${copiedAttraction.name}" 粘贴到行程中`, 'success');
+    
+    // 重新加载行程日列表以更新显示
+    await loadDays();
+    renderDays();
+    
+    // 重新加载地图标记
+    await addMapMarkers();
+    
+  } catch (error) {
+    console.error('粘贴景点失败:', error);
+    showNotification('粘贴景点失败，请重试', 'error');
+  }
+}
+
 // 保存景点到服务器
 async function saveAttractions(dayId) {
   try {
@@ -2359,3 +2583,280 @@ async function saveAttractions(dayId) {
     return false;
   }
 }
+
+// 浮动小地图功能
+let miniMap = null;
+let isFloatingMapVisible = false;
+let mainMapContainer = null;
+
+// 初始化浮动小地图
+function initFloatingMiniMap() {
+  mainMapContainer = document.querySelector('.map-container');
+  const floatingMiniMap = document.getElementById('floatingMiniMap');
+  const closeMiniMapBtn = document.getElementById('closeMiniMap');
+  
+  // 关闭按钮事件
+  if (closeMiniMapBtn) {
+    closeMiniMapBtn.addEventListener('click', hideFloatingMiniMap);
+  }
+  
+  // 滚动监听
+  window.addEventListener('scroll', handleScroll);
+  
+  // 窗口大小变化监听
+  window.addEventListener('resize', handleResize);
+}
+
+// 处理滚动事件
+function handleScroll() {
+  if (!mainMapContainer) return;
+  
+  const rect = mainMapContainer.getBoundingClientRect();
+  const isMainMapVisible = rect.bottom > 0 && rect.top < window.innerHeight;
+  
+  if (!isMainMapVisible && !isFloatingMapVisible && map) {
+    showFloatingMiniMap();
+  } else if (isMainMapVisible && isFloatingMapVisible) {
+    hideFloatingMiniMap();
+  }
+}
+
+// 显示浮动小地图
+function showFloatingMiniMap() {
+  const floatingMiniMap = document.getElementById('floatingMiniMap');
+  const miniMapContainer = document.getElementById('miniMap');
+  
+  if (!floatingMiniMap || !miniMapContainer || !map) return;
+  
+  floatingMiniMap.style.display = 'block';
+  isFloatingMapVisible = true;
+  
+  // 延迟创建小地图，确保容器已显示
+  setTimeout(() => {
+    createMiniMap(miniMapContainer);
+  }, 100);
+}
+
+// 隐藏浮动小地图
+function hideFloatingMiniMap() {
+  const floatingMiniMap = document.getElementById('floatingMiniMap');
+  
+  if (!floatingMiniMap) return;
+  
+  floatingMiniMap.style.display = 'none';
+  isFloatingMapVisible = false;
+  
+  // 清理小地图
+  if (miniMap) {
+    try {
+      if (mapProvider === 'openstreetmap') {
+        miniMap.remove();
+      } else if (mapProvider === 'baidu') {
+        // 百度地图没有destroy方法，直接清空容器
+        const container = document.getElementById('miniMapContainer');
+        if (container) {
+          container.innerHTML = '';
+        }
+      }
+    } catch (error) {
+      console.warn('清理小地图时出错:', error);
+    }
+    miniMap = null;
+  }
+}
+
+// 创建小地图
+function createMiniMap(container) {
+  if (miniMap) return;
+  
+  try {
+    if (mapProvider === 'openstreetmap') {
+      createOSMMiniMap(container);
+    } else if (mapProvider === 'baidu') {
+      createBaiduMiniMap(container);
+    }
+  } catch (error) {
+    console.error('创建小地图失败:', error);
+  }
+}
+
+// 创建OpenStreetMap小地图
+function createOSMMiniMap(container) {
+  if (!window.L || !map) return;
+  
+  const center = map.getCenter();
+  const zoom = Math.max(map.getZoom() - 2, 1);
+  
+  miniMap = L.map(container, {
+    center: [center.lat, center.lng],
+    zoom: zoom,
+    zoomControl: false,
+    attributionControl: false,
+    dragging: true,
+    scrollWheelZoom: false,
+    doubleClickZoom: false
+  });
+  
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(miniMap);
+  
+  // 同步主地图的标记
+  syncMarkersToMiniMap();
+  
+  // 监听主地图变化
+  map.on('moveend zoomend', () => {
+    if (miniMap && isFloatingMapVisible) {
+      const newCenter = map.getCenter();
+      const newZoom = Math.max(map.getZoom() - 2, 1);
+      miniMap.setView([newCenter.lat, newCenter.lng], newZoom);
+    }
+  });
+}
+
+// 创建百度地图小地图
+function createBaiduMiniMap(container) {
+  if (!window.BMap || !map) return;
+  
+  const center = map.getCenter();
+  const zoom = Math.max(map.getZoom() - 2, 3);
+  
+  miniMap = new BMap.Map(container, {
+    enableMapClick: false
+  });
+  
+  miniMap.centerAndZoom(center, zoom);
+  miniMap.disableScrollWheelZoom();
+  miniMap.disableDoubleClickZoom();
+  
+  // 同步主地图的标记
+  syncMarkersToMiniMap();
+  
+  // 监听主地图变化
+  map.addEventListener('moveend', () => {
+    if (miniMap && isFloatingMapVisible) {
+      const newCenter = map.getCenter();
+      const newZoom = Math.max(map.getZoom() - 2, 3);
+      miniMap.centerAndZoom(newCenter, newZoom);
+    }
+  });
+}
+
+// 同步标记到小地图
+function syncMarkersToMiniMap() {
+  if (!miniMap || !attractionMarkers || attractionMarkers.length === 0) return;
+  
+  // 清除之前的标记和连线
+  if (mapProvider === 'openstreetmap') {
+    miniMap.eachLayer(layer => {
+      if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+        miniMap.removeLayer(layer);
+      }
+    });
+  } else if (mapProvider === 'baidu') {
+    miniMap.clearOverlays();
+  }
+  
+  // 收集路径坐标用于绘制连线
+  const pathCoordinates = [];
+  
+  attractionMarkers.forEach(markerInfo => {
+    // 从coordinates数组中获取坐标
+    const [lat, lng] = markerInfo.coordinates;
+    const attraction = markerInfo.attraction;
+    
+    // 添加到路径坐标数组
+    pathCoordinates.push([lat, lng]);
+    
+    if (mapProvider === 'openstreetmap') {
+      // 创建简化的小地图标记
+      const miniMarkerIcon = L.divIcon({
+        className: 'mini-map-marker',
+        html: `
+          <div style="
+            background: #007bff;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 10px;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+          ">${attraction.globalOrder || '•'}</div>
+        `,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10],
+        popupAnchor: [0, -10]
+      });
+      
+      const miniMarker = L.marker([lat, lng], { icon: miniMarkerIcon })
+        .bindPopup(`<strong>${attraction.name}</strong><br>第${attraction.dayIndex}天`)
+        .addTo(miniMap);
+        
+    } else if (mapProvider === 'baidu') {
+      const point = new BMap.Point(lng, lat);
+      
+      // 创建简单的圆形标记图标，避免中文字符编码问题
+      const svgContent = `<svg width="20" height="20" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="8" fill="#007bff" stroke="white" stroke-width="2"/><circle cx="10" cy="10" r="3" fill="white"/></svg>`;
+      const icon = new BMap.Icon(
+        `data:image/svg+xml;base64,${btoa(svgContent)}`,
+        new BMap.Size(20, 20),
+        { anchor: new BMap.Size(10, 10) }
+      );
+      
+      const miniMarker = new BMap.Marker(point, { icon });
+      miniMap.addOverlay(miniMarker);
+      
+      const infoWindow = new BMap.InfoWindow(attraction.name, {
+        width: 120,
+        height: 30,
+        title: false
+      });
+      miniMarker.addEventListener('click', () => {
+        miniMap.openInfoWindow(infoWindow, point);
+      });
+    }
+  });
+  
+  // 绘制连接线
+  if (pathCoordinates.length > 1) {
+    if (mapProvider === 'openstreetmap') {
+      const routeLine = L.polyline(pathCoordinates, {
+        color: '#007bff',
+        weight: 2,
+        opacity: 0.7,
+        smoothFactor: 1
+      });
+      routeLine.addTo(miniMap);
+    } else if (mapProvider === 'baidu') {
+      const baiduPoints = pathCoordinates.map(coord => new BMap.Point(coord[1], coord[0]));
+      const polyline = new BMap.Polyline(baiduPoints, {
+        strokeColor: '#007bff',
+        strokeWeight: 2,
+        strokeOpacity: 0.7
+      });
+      miniMap.addOverlay(polyline);
+    }
+  }
+}
+
+// 处理窗口大小变化
+function handleResize() {
+  if (miniMap && isFloatingMapVisible) {
+    setTimeout(() => {
+      if (mapProvider === 'openstreetmap') {
+        miniMap.invalidateSize();
+      } else if (mapProvider === 'baidu') {
+        miniMap.reset();
+      }
+    }, 100);
+  }
+}
+
+// 在页面加载完成后初始化浮动小地图
+document.addEventListener('DOMContentLoaded', () => {
+  // 延迟初始化，确保地图已加载
+  setTimeout(initFloatingMiniMap, 1000);
+});

@@ -119,6 +119,93 @@ paths:
           description: 未授权
         '404':
           description: 用户不存在
+    put:
+      summary: 更新用户信息
+      description: 更新当前用户的基本信息（昵称、邮箱等）
+      tags:
+        - 认证
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nickname:
+                  type: string
+                  description: 昵称
+                  maxLength: 50
+                  example: "小明"
+                email:
+                  type: string
+                  format: email
+                  description: 邮箱地址
+                  example: "newemail@example.com"
+                avatar:
+                  type: string
+                  description: 头像URL
+                  example: "https://example.com/avatar.jpg"
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: 请求参数错误
+        '401':
+          description: 未授权
+        '409':
+          description: 邮箱已被使用
+        '500':
+          description: 更新失败
+  /auth/password:
+    put:
+      summary: 修改密码
+      description: 修改当前用户的登录密码
+      tags:
+        - 认证
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - currentPassword
+                - newPassword
+              properties:
+                currentPassword:
+                  type: string
+                  description: 当前密码
+                  example: "oldpassword123"
+                newPassword:
+                  type: string
+                  description: 新密码
+                  minLength: 6
+                  example: "newpassword123"
+      responses:
+        '200':
+          description: 密码修改成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "密码修改成功"
+        '400':
+          description: 请求参数错误
+        '401':
+          description: 当前密码错误或未授权
+        '500':
+          description: 修改失败
   /plans:
     get:
       summary: 获取用户的旅游计划列表
@@ -1053,6 +1140,14 @@ components:
           format: email
           description: 邮箱地址
           example: "john@example.com"
+        nickname:
+          type: string
+          description: 昵称
+          example: "小明"
+        avatar:
+          type: string
+          description: 头像URL
+          example: "https://example.com/avatar.jpg"
         createdAt:
           type: string
           format: date-time
