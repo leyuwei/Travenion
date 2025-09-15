@@ -1577,12 +1577,31 @@ p {
   
   .modal-content {
     max-width: calc(100vw - 10px);
+    max-height: calc(100vh - 20px);
+    display: flex;
+    flex-direction: column;
   }
   
-  .modal-header,
-  .modal-body,
+  .modal-header {
+    padding: 10px;
+    flex-shrink: 0;
+  }
+  
+  .modal-body {
+    padding: 10px;
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: 80px; /* 为底部按钮留出空间 */
+  }
+  
   .modal-footer {
     padding: 10px;
+    flex-shrink: 0;
+    position: sticky;
+    bottom: 0;
+    background: white;
+    border-top: 1px solid #e5e7eb;
+    margin-top: auto;
   }
   
   .btn {
@@ -1593,6 +1612,27 @@ p {
   .btn-sm {
     font-size: 12px;
     padding: 6px 8px;
+  }
+  
+  /* 确保景点列表不被按钮覆盖 */
+  #attractionsList {
+    margin-bottom: 20px;
+  }
+  
+  /* 移动端按钮组优化 */
+  .day-actions-desktop {
+    display: none !important;
+  }
+  
+  .day-actions-mobile {
+    display: flex !important;
+    flex-wrap: wrap;
+  }
+  
+  .day-actions-mobile .btn {
+    flex: 1;
+    min-width: calc(50% - 4px);
+    margin-bottom: 4px;
   }
 }
 

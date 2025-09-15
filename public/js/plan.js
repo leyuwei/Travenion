@@ -573,13 +573,23 @@ function renderDays() {
             <p style="margin: 0; color: #6b7280; font-size: 14px;">第${day.dayIndex}天 ${day.date ? formatDate(day.date) : ''}</p>
           </div>
         </div>
-        <div style="display: flex; gap: 10px;">
+        <!-- PC端按钮组 -->
+        <div class="day-actions-desktop" style="display: flex; gap: 10px;">
           <button class="btn btn-info paste-btn" onclick="pasteAttraction(${day.id})" style="padding: 8px 12px; font-size: 14px; ${copiedAttraction ? 'background: #17a2b8; color: white; border: 1px solid #17a2b8;' : 'background: #e9ecef; color: #6c757d; border: 1px solid #dee2e6; cursor: not-allowed;'}" title="${copiedAttraction ? `粘贴景点: ${copiedAttraction.name}` : '剪贴板为空'}">
             <i class="fas fa-paste"></i> 粘贴${copiedAttraction ? ` (${copiedAttraction.name})` : ''}
           </button>
           <button class="btn btn-outline" onclick="editDay(${day.id})" style="padding: 8px 12px; font-size: 14px;">编辑</button>
           <button class="btn btn-danger" onclick="deleteDay(${day.id})" style="padding: 8px 12px; font-size: 14px;">删除</button>
         </div>
+      </div>
+      
+      <!-- 移动端按钮组 -->
+      <div class="day-actions-mobile" style="display: none; flex-wrap: wrap; gap: 8px; margin-bottom: 15px;">
+        <button class="btn btn-info paste-btn" onclick="pasteAttraction(${day.id})" style="padding: 8px 12px; font-size: 14px; ${copiedAttraction ? 'background: #17a2b8; color: white; border: 1px solid #17a2b8;' : 'background: #e9ecef; color: #6c757d; border: 1px solid #dee2e6; cursor: not-allowed;'}" title="${copiedAttraction ? `粘贴景点: ${copiedAttraction.name}` : '剪贴板为空'}">
+          <i class="fas fa-paste"></i> 粘贴${copiedAttraction ? ` (${copiedAttraction.name})` : ''}
+        </button>
+        <button class="btn btn-outline" onclick="editDay(${day.id})" style="padding: 8px 12px; font-size: 14px;">编辑</button>
+        <button class="btn btn-danger" onclick="deleteDay(${day.id})" style="padding: 8px 12px; font-size: 14px;">删除</button>
       </div>
       
       ${day.transportation ? `
