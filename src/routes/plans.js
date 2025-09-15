@@ -455,8 +455,11 @@ router.post('/:id/files', upload.single('file'), async (req, res) => {
     const originalname = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
     
     const file = await PlanFile.create({ 
-      filename: originalname, 
-      path: req.file.path, 
+      filename: req.file.filename, // 服务器生成的文件名
+      originalName: originalname, // 用户上传的原始文件名
+      path: req.file.path,
+      fileSize: req.file.size,
+      mimeType: req.file.mimetype,
       planId: plan.id 
     });
     res.status(201).json(file);

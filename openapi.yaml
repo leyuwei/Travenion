@@ -1247,12 +1247,16 @@ components:
           example: 1
         filename:
           type: string
-          description: 文件名
-          example: "travel_itinerary.pdf"
+          description: 服务器存储的文件名
+          example: "1704067200000_travel_itinerary.pdf"
         originalName:
           type: string
-          description: 原始文件名
+          description: 用户上传的原始文件名
           example: "我的旅行计划.pdf"
+        path:
+          type: string
+          description: 文件存储路径
+          example: "/uploads/1704067200000_travel_itinerary.pdf"
         fileSize:
           type: integer
           description: 文件大小（字节）
@@ -1261,10 +1265,19 @@ components:
           type: string
           description: 文件MIME类型
           example: "application/pdf"
+        description:
+          type: string
+          description: 文件描述
+          example: "旅行行程安排文档"
         uploadedAt:
           type: string
           format: date-time
-          description: 上传时间
+          description: 文件上传时间
+          example: "2024-01-01T00:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: 记录更新时间
           example: "2024-01-01T00:00:00Z"
     PlanShare:
       type: object

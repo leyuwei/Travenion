@@ -673,22 +673,264 @@ function renderFiles() {
   emptyState.style.display = 'none';
   
   container.innerHTML = files.map(file => `
-    <div class="file-card" style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: transform 0.2s;">
-      <div style="text-align: center; margin-bottom: 15px;">
-        <div style="font-size: 2.5rem; margin-bottom: 10px;">${getFileIcon(file.filename)}</div>
-        <h4 style="margin: 0; font-size: 16px; color: #1f2937; word-break: break-word;" title="${file.filename}">${file.filename}</h4>
-        <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 12px;">
-          上传于 ${formatDate(file.created_at)}
-        </p>
-        ${file.description ? `<div style="margin-top: 8px; padding: 8px; background: #f8fafc; border-radius: 6px; font-size: 12px; color: #6b7280;">${file.description}</div>` : ''}
+    <div class="file-card" style="
+      background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    " onmouseover="
+      this.style.transform='translateY(-4px) scale(1.02)';
+      this.style.boxShadow='0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)';
+      this.style.borderColor='#3b82f6';
+    " onmouseout="
+      this.style.transform='translateY(0) scale(1)';
+      this.style.boxShadow='0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
+      this.style.borderColor='#e2e8f0';
+    ">
+      
+      <!-- 装饰性渐变条 -->
+      <div style="
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, #3b82f6, #8b5cf6, #06b6d4);
+      "></div>
+      
+      <!-- 文件头部信息 -->
+      <div style="display: flex; align-items: flex-start; margin-bottom: 16px;">
+        <div style="
+          background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+          color: white;
+          border-radius: 12px;
+          width: 56px;
+          height: 56px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 1.5rem;
+          margin-right: 16px;
+          flex-shrink: 0;
+          box-shadow: 0 4px 14px 0 rgba(59, 130, 246, 0.39);
+        ">${getFileIcon(file.filename)}</div>
+        
+        <div style="flex: 1; min-width: 0;">
+          <h3 style="
+            font-weight: 700;
+            color: #1f2937;
+            margin: 0 0 8px 0;
+            font-size: 16px;
+            line-height: 1.4;
+            word-break: break-word;
+          " title="${file.originalName || file.filename}">${file.originalName || file.filename}</h3>
+          
+          <!-- 文件元信息标签 -->
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            <span style="
+              background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+              color: #1e40af;
+              padding: 4px 8px;
+              border-radius: 6px;
+              font-size: 11px;
+              font-weight: 500;
+              display: flex;
+              align-items: center;
+              gap: 4px;
+            ">
+              <i class="fas fa-clock" style="font-size: 10px;"></i>
+              ${formatDate(file.uploadedAt)}
+            </span>
+            
+            ${file.fileSize ? `
+              <span style="
+                background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+                color: #065f46;
+                padding: 4px 8px;
+                border-radius: 6px;
+                font-size: 11px;
+                font-weight: 500;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+              ">
+                <i class="fas fa-hdd" style="font-size: 10px;"></i>
+                ${formatFileSize(file.fileSize)}
+              </span>
+            ` : ''}
+            
+            ${file.mimeType ? `
+              <span style="
+                background: linear-gradient(135deg, #fef3c7, #fde68a);
+                color: #92400e;
+                padding: 4px 8px;
+                border-radius: 6px;
+                font-size: 11px;
+                font-weight: 500;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+              ">
+                <i class="fas fa-file" style="font-size: 10px;"></i>
+                ${file.mimeType.split('/')[1] || file.mimeType}
+              </span>
+            ` : ''}
+          </div>
+        </div>
       </div>
-      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+      
+      <!-- 文件描述 -->
+      ${file.description ? `
+        <div style="
+          background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+          border: 1px solid #0ea5e9;
+          border-radius: 12px;
+          padding: 12px;
+          margin-bottom: 16px;
+          position: relative;
+        ">
+          <div style="
+            position: absolute;
+            left: 12px;
+            top: -6px;
+            background: #0ea5e9;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+          ">描述</div>
+          <p style="
+            color: #0c4a6e;
+            font-size: 13px;
+            line-height: 1.5;
+            margin: 8px 0 0 0;
+          ">${file.description}</p>
+        </div>
+      ` : ''}
+      
+      <!-- 操作按钮区域 -->
+      <div style="
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+        padding-top: 16px;
+        border-top: 1px solid #f1f5f9;
+      ">
         ${canPreviewFile(file.filename) ? `
-          <button class="btn btn-outline" onclick="previewFile(${file.id})" style="flex: 1; min-width: 60px; font-size: 12px;" title="预览">预览</button>
+          <button onclick="previewFile(${file.id})" style="
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: 10px 16px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.39);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            min-width: 80px;
+            justify-content: center;
+          " title="预览文件" onmouseover="
+            this.style.transform='translateY(-2px)';
+            this.style.boxShadow='0 6px 20px 0 rgba(16, 185, 129, 0.5)';
+          " onmouseout="
+            this.style.transform='translateY(0)';
+            this.style.boxShadow='0 4px 14px 0 rgba(16, 185, 129, 0.39)';
+          ">
+            <i class="fas fa-eye" style="font-size: 11px;"></i>
+            <span>预览</span>
+          </button>
         ` : ''}
-        <button class="btn btn-outline" onclick="downloadFile(${file.id})" style="flex: 1; min-width: 60px; font-size: 12px;" title="下载">下载</button>
-        <button class="btn btn-secondary" onclick="editFileDescription(${file.id})" style="flex: 1; min-width: 60px; font-size: 12px;" title="编辑描述">描述</button>
-        <button class="btn btn-danger" onclick="deleteFile(${file.id})" style="flex: 1; min-width: 60px; font-size: 12px;" title="删除">删除</button>
+        
+        <button onclick="downloadFile(${file.id})" style="
+          background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+          color: white;
+          border: none;
+          border-radius: 10px;
+          padding: 10px 16px;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          box-shadow: 0 4px 14px 0 rgba(59, 130, 246, 0.39);
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          min-width: 80px;
+          justify-content: center;
+        " title="下载文件" onmouseover="
+          this.style.transform='translateY(-2px)';
+          this.style.boxShadow='0 6px 20px 0 rgba(59, 130, 246, 0.5)';
+        " onmouseout="
+          this.style.transform='translateY(0)';
+          this.style.boxShadow='0 4px 14px 0 rgba(59, 130, 246, 0.39)';
+        ">
+          <i class="fas fa-download" style="font-size: 11px;"></i>
+          <span>下载</span>
+        </button>
+        
+        <button onclick="editFileDescription(${file.id})" style="
+          background: linear-gradient(135deg, #f59e0b, #d97706);
+          color: white;
+          border: none;
+          border-radius: 10px;
+          padding: 10px 16px;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          box-shadow: 0 4px 14px 0 rgba(245, 158, 11, 0.39);
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          min-width: 80px;
+          justify-content: center;
+        " title="编辑描述" onmouseover="
+          this.style.transform='translateY(-2px)';
+          this.style.boxShadow='0 6px 20px 0 rgba(245, 158, 11, 0.5)';
+        " onmouseout="
+          this.style.transform='translateY(0)';
+          this.style.boxShadow='0 4px 14px 0 rgba(245, 158, 11, 0.39)';
+        ">
+          <i class="fas fa-edit" style="font-size: 11px;"></i>
+          <span>编辑</span>
+        </button>
+        
+        <button onclick="deleteFile(${file.id})" style="
+          background: linear-gradient(135deg, #ef4444, #dc2626);
+          color: white;
+          border: none;
+          border-radius: 10px;
+          padding: 10px 16px;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          box-shadow: 0 4px 14px 0 rgba(239, 68, 68, 0.39);
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          min-width: 80px;
+          justify-content: center;
+        " title="删除文件" onmouseover="
+          this.style.transform='translateY(-2px)';
+          this.style.boxShadow='0 6px 20px 0 rgba(239, 68, 68, 0.5)';
+        " onmouseout="
+          this.style.transform='translateY(0)';
+          this.style.boxShadow='0 4px 14px 0 rgba(239, 68, 68, 0.39)';
+        ">
+          <i class="fas fa-trash" style="font-size: 11px;"></i>
+          <span>删除</span>
+        </button>
       </div>
     </div>
   `).join('');
@@ -2441,10 +2683,8 @@ function navigateToAttraction(attractionName, attractionAddress) {
     // 移动端：显示导航应用选择器
     showNavigationSelector(attractionName, query, isIOS, isAndroid);
   } else {
-    // PC端：直接打开Google Maps网页版
-    const navigationUrl = `https://maps.google.com/maps?q=${encodeURIComponent(query)}&navigate=yes`;
-    window.open(navigationUrl, '_blank');
-    showNotification(`正在为您导航到: ${attractionName}`, 'success');
+    // PC端：显示导航选择器
+    showPCNavigationSelector(attractionName, query);
   }
 }
 
@@ -2527,14 +2767,14 @@ function showNavigationSelector(attractionName, query, isIOS, isAndroid) {
       {
         name: '高德地图',
         icon: '🧭',
-        url: `iosamap://navi?sourceApplication=Travenion&poiname=${encodeURIComponent(attractionName)}&poiid=BGVIS&lat=&lon=&dev=0&style=2`,
+        url: `iosamap://path?sourceApplication=Travenion&dname=${encodeURIComponent(attractionName)}&dlat=&dlon=&dev=0&t=0`,
         fallback: `https://uri.amap.com/navigation?to=${encodeURIComponent(query)}`,
         color: '#00C853'
       },
       {
         name: '百度地图',
         icon: '📍',
-        url: `baidumap://map/direction?destination=${encodeURIComponent(query)}&mode=driving`,
+        url: `baidumap://map/direction?destination=name:${encodeURIComponent(attractionName)}&mode=driving&src=Travenion`,
         fallback: `https://map.baidu.com/?qt=nav&tn=H_APP&c=1&sc=1&ec=1&sn=0&en=0&rn=${encodeURIComponent(query)}`,
         color: '#3F51B5'
       }
@@ -2551,14 +2791,14 @@ function showNavigationSelector(attractionName, query, isIOS, isAndroid) {
       {
         name: '高德地图',
         icon: '🧭',
-        url: `androidamap://navi?sourceApplication=Travenion&poiname=${encodeURIComponent(attractionName)}&lat=&lon=&dev=0&style=2`,
+        url: `androidamap://path?sourceApplication=Travenion&dname=${encodeURIComponent(attractionName)}&dlat=&dlon=&dev=0&t=0`,
         fallback: `https://uri.amap.com/navigation?to=${encodeURIComponent(query)}`,
         color: '#00C853'
       },
       {
         name: '百度地图',
         icon: '📍',
-        url: `bdapp://map/direction?destination=${encodeURIComponent(query)}&mode=driving`,
+        url: `baidumap://map/direction?destination=name:${encodeURIComponent(attractionName)}&mode=driving&src=Travenion`,
         fallback: `https://map.baidu.com/?qt=nav&tn=H_APP&c=1&sc=1&ec=1&sn=0&en=0&rn=${encodeURIComponent(query)}`,
         color: '#3F51B5'
       }
@@ -2597,15 +2837,28 @@ function showNavigationSelector(attractionName, query, isIOS, isAndroid) {
       
       if (option.fallback) {
         // 尝试打开应用，失败则使用网页版
-        const iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        iframe.src = option.url;
-        document.body.appendChild(iframe);
+        let appOpened = false;
         
+        // 监听页面可见性变化，判断应用是否成功打开
+        const handleVisibilityChange = () => {
+          if (document.hidden) {
+            appOpened = true;
+          }
+        };
+        
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        
+        // 尝试打开应用
+        window.location.href = option.url;
+        
+        // 延迟检查是否成功打开应用
         setTimeout(() => {
-          document.body.removeChild(iframe);
-          window.open(option.fallback, '_blank');
-        }, 1500);
+          document.removeEventListener('visibilitychange', handleVisibilityChange);
+          if (!appOpened) {
+            // 应用未打开，使用网页版
+            window.open(option.fallback, '_blank');
+          }
+        }, 2000);
       } else {
         // 直接打开
         if (option.url.startsWith('http')) {
@@ -2661,6 +2914,197 @@ function showNavigationSelector(attractionName, query, isIOS, isAndroid) {
       document.body.removeChild(modal);
     }
   });
+  
+  // 显示模态框
+  document.body.appendChild(modal);
+}
+
+// PC端导航选择器
+function showPCNavigationSelector(attractionName, query) {
+  // 创建模态框
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    padding: 20px;
+    box-sizing: border-box;
+  `;
+  
+  // 创建选择器内容
+  const content = document.createElement('div');
+  content.style.cssText = `
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    max-width: 500px;
+    width: 100%;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  `;
+  
+  // 标题
+  const title = document.createElement('h3');
+  title.textContent = `选择导航服务`;
+  title.style.cssText = `
+    margin: 0 0 15px 0;
+    color: #333;
+    text-align: center;
+    font-size: 18px;
+  `;
+  
+  // 景点信息
+  const info = document.createElement('p');
+  info.textContent = `导航到: ${attractionName}`;
+  info.style.cssText = `
+    margin: 0 0 20px 0;
+    color: #666;
+    text-align: center;
+    font-size: 14px;
+  `;
+  
+  // 按钮容器
+  const buttonContainer = document.createElement('div');
+  buttonContainer.style.cssText = `
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+  `;
+  
+  // PC端导航选项
+  const navigationOptions = [
+    {
+      name: 'Google 地图',
+      icon: '🌍',
+      url: `https://maps.google.com/maps?q=${encodeURIComponent(query)}&navigate=yes`,
+      color: '#4285F4',
+      description: '全球覆盖，路况实时'
+    },
+    {
+      name: '高德地图',
+      icon: '🧭',
+      url: `https://uri.amap.com/navigation?to=${encodeURIComponent(query)}`,
+      color: '#00C853',
+      description: '国内精准，路况详细'
+    },
+    {
+       name: '百度地图',
+       icon: '📍',
+       url: `https://map.baidu.com/?qt=s&wd=${encodeURIComponent(query)}&c=1`,
+       color: '#3F51B5',
+       description: '本土化强，POI丰富'
+     },
+    {
+       name: 'OpenStreetMap',
+       icon: '🗺️',
+       url: `https://www.openstreetmap.org/directions?from=&to=${encodeURIComponent(query)}#map=15`,
+       color: '#7EBC6F',
+       description: '开源地图，社区维护'
+     }
+  ];
+  
+  // 创建导航按钮
+  navigationOptions.forEach(option => {
+    const button = document.createElement('button');
+    button.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
+        <span style="font-size: 20px;">${option.icon}</span>
+        <span style="font-weight: 600;">${option.name}</span>
+      </div>
+      <div style="font-size: 12px; color: rgba(255,255,255,0.8); text-align: left;">${option.description}</div>
+    `;
+    button.style.cssText = `
+      padding: 15px;
+      border: none;
+      border-radius: 8px;
+      background: ${option.color};
+      color: white;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-align: left;
+      min-height: 70px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    `;
+    
+    button.addEventListener('click', () => {
+      document.body.removeChild(modal);
+      window.open(option.url, '_blank');
+      showNotification(`正在使用${option.name}导航到: ${attractionName}`, 'success');
+    });
+    
+    // 悬停效果
+    button.addEventListener('mouseover', () => {
+      button.style.transform = 'translateY(-2px)';
+      button.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+    });
+    
+    button.addEventListener('mouseout', () => {
+      button.style.transform = 'translateY(0)';
+      button.style.boxShadow = 'none';
+    });
+    
+    buttonContainer.appendChild(button);
+  });
+  
+  // 取消按钮
+  const cancelButton = document.createElement('button');
+  cancelButton.textContent = '取消';
+  cancelButton.style.cssText = `
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: white;
+    color: #666;
+    font-size: 16px;
+    cursor: pointer;
+    margin-top: 20px;
+    width: 100%;
+    transition: all 0.2s ease;
+  `;
+  
+  cancelButton.addEventListener('click', () => {
+    document.body.removeChild(modal);
+  });
+  
+  cancelButton.addEventListener('mouseover', () => {
+    cancelButton.style.background = '#f5f5f5';
+  });
+  
+  cancelButton.addEventListener('mouseout', () => {
+    cancelButton.style.background = 'white';
+  });
+  
+  // 组装模态框
+  content.appendChild(title);
+  content.appendChild(info);
+  content.appendChild(buttonContainer);
+  content.appendChild(cancelButton);
+  modal.appendChild(content);
+  
+  // 点击背景关闭
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      document.body.removeChild(modal);
+    }
+  });
+  
+  // ESC键关闭
+  const handleKeyDown = (e) => {
+    if (e.key === 'Escape') {
+      document.body.removeChild(modal);
+      document.removeEventListener('keydown', handleKeyDown);
+    }
+  };
+  document.addEventListener('keydown', handleKeyDown);
   
   // 显示模态框
   document.body.appendChild(modal);
@@ -2787,6 +3231,11 @@ function initFloatingMiniMap() {
   
   // 窗口大小变化监听
   window.addEventListener('resize', handleResize);
+  
+  // 初始化拖拽调整大小功能（仅PC端）
+  if (!isMobileDevice()) {
+    initMiniMapResize();
+  }
 }
 
 // 处理滚动事件
@@ -3037,8 +3486,121 @@ function handleResize() {
   }
 }
 
+// 检测是否为移动设备
+function isMobileDevice() {
+  return window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+}
+
+// 初始化小地图拖拽调整大小功能
+function initMiniMapResize() {
+  const floatingMiniMap = document.getElementById('floatingMiniMap');
+  if (!floatingMiniMap) {
+    console.warn('浮动小地图元素未找到');
+    return;
+  }
+  
+  const resizeHandles = floatingMiniMap.querySelectorAll('.resize-handle');
+  if (resizeHandles.length === 0) {
+    console.warn('拖拽手柄元素未找到');
+    return;
+  }
+  
+  console.log('初始化小地图拖拽功能，找到', resizeHandles.length, '个拖拽手柄');
+  
+  let isResizing = false;
+  let currentHandle = null;
+  let startX, startY, startWidth, startHeight, startLeft;
+  
+  resizeHandles.forEach(handle => {
+    handle.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      isResizing = true;
+      currentHandle = handle;
+      startX = e.clientX;
+      startY = e.clientY;
+      
+      const rect = floatingMiniMap.getBoundingClientRect();
+      startWidth = rect.width;
+      startHeight = rect.height;
+      startLeft = rect.left;
+      
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      
+      // 防止选择文本
+      document.body.style.userSelect = 'none';
+      floatingMiniMap.style.transition = 'none';
+    });
+  });
+  
+  function handleMouseMove(e) {
+    if (!isResizing || !currentHandle) return;
+    
+    const direction = currentHandle.dataset.direction;
+    const deltaX = e.clientX - startX;
+    const deltaY = e.clientY - startY;
+    
+    let newWidth = startWidth;
+    let newHeight = startHeight;
+    
+    // 根据拖拽方向调整大小
+    if (direction.includes('w')) {
+      newWidth = Math.max(200, startWidth - deltaX); // 最小宽度200px
+      // 左侧拖拽需要调整位置
+      const newLeft = Math.min(startLeft + deltaX, startLeft + startWidth - 200);
+      floatingMiniMap.style.left = newLeft + 'px';
+    }
+    if (direction.includes('e')) {
+      newWidth = Math.max(200, startWidth + deltaX); // 最小宽度200px
+    }
+    if (direction.includes('s')) {
+      newHeight = Math.max(150, startHeight + deltaY); // 最小高度150px
+    }
+    
+    // 最大尺寸限制
+    newWidth = Math.min(newWidth, window.innerWidth - 40);
+    newHeight = Math.min(newHeight, window.innerHeight - 40);
+    
+    floatingMiniMap.style.width = newWidth + 'px';
+    floatingMiniMap.style.height = newHeight + 'px';
+    
+    // 重新调整地图大小
+    if (miniMap) {
+      setTimeout(() => {
+        if (mapProvider === 'openstreetmap' && miniMap.invalidateSize) {
+          miniMap.invalidateSize();
+        } else if (mapProvider === 'baidu' && miniMap.reset) {
+          miniMap.reset();
+        }
+      }, 100);
+    }
+  }
+  
+  function handleMouseUp() {
+    if (!isResizing) return;
+    
+    isResizing = false;
+    currentHandle = null;
+    
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+    
+    // 恢复样式
+    document.body.style.userSelect = '';
+    floatingMiniMap.style.transition = '';
+  }
+}
+
 // 在页面加载完成后初始化浮动小地图
 document.addEventListener('DOMContentLoaded', () => {
   // 延迟初始化，确保地图已加载
-  setTimeout(initFloatingMiniMap, 1000);
+  setTimeout(() => {
+    initFloatingMiniMap();
+    // 只在PC端初始化拖拽调整大小功能
+    if (!isMobileDevice()) {
+      initMiniMapResize();
+    }
+  }, 1000);
 });
