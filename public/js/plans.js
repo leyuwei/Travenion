@@ -105,6 +105,32 @@ async function loadSharedPlans() {
   }
 }
 
+// 检测文字溢出并添加滚动效果
+function addScrollEffectToOverflowText() {
+  const textScrollElements = document.querySelectorAll('.text-scroll');
+  
+  textScrollElements.forEach(element => {
+    // 检查文字是否溢出
+    if (element.scrollWidth > element.clientWidth) {
+      // 设置容器宽度CSS变量
+      element.style.setProperty('--container-width', element.clientWidth + 'px');
+      element.classList.add('auto-scroll');
+      
+      // 添加鼠标悬停暂停滚动
+      element.addEventListener('mouseenter', () => {
+        element.style.animationPlayState = 'paused';
+      });
+      
+      element.addEventListener('mouseleave', () => {
+        element.style.animationPlayState = 'running';
+      });
+    } else {
+      // 如果文字不溢出，移除滚动效果
+      element.classList.remove('auto-scroll');
+    }
+  });
+}
+
 // 渲染计划列表
 function renderPlans() {
   const planGrid = document.getElementById('planGrid');
@@ -131,8 +157,8 @@ function renderPlans() {
     
     planCard.innerHTML = `
       <div class="card-header">
-        <h3 class="card-title" style="margin-bottom: 5px;">${plan.title}</h3>
-        <p style="color: #6b7280; margin: 0; font-size: 14px;">${plan.description || '暂无描述'}</p>
+        <h3 class="card-title text-scroll" style="margin-bottom: 5px;" title="${plan.title}">${plan.title}</h3>
+        <p class="text-scroll" style="color: #6b7280; margin: 0; font-size: 14px;" title="${plan.description || '暂无描述'}">${plan.description || '暂无描述'}</p>
       </div>
       <div style="padding: 20px 25px;">
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
@@ -148,16 +174,16 @@ function renderPlans() {
           </div>
         </div>
         
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-          <div style="display: flex; gap: 10px;">
-            <span class="badge badge-secondary">${plan.defaultMap === 'openstreetmap' ? 'OpenStreetMap' : '百度地图'}</span>
-            ${sharedCount > 0 ? `<span class="badge">已分享给${sharedCount}人</span>` : ''}
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 8px;">
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <span class="badge badge-secondary text-scroll" title="${plan.defaultMap === 'openstreetmap' ? 'OpenStreetMap' : '百度地图'}">${plan.defaultMap === 'openstreetmap' ? 'OpenStreetMap' : '百度地图'}</span>
+            ${sharedCount > 0 ? `<span class="badge text-scroll" title="已分享给${sharedCount}人">已分享给${sharedCount}人</span>` : ''}
           </div>
-          <span style="font-size: 12px; color: #9ca3af;">创建于 ${formatDate(plan.createdAt)}</span>
+          <span class="text-scroll" style="font-size: 12px; color: #9ca3af;" title="创建于 ${formatDate(plan.createdAt)}">创建于 ${formatDate(plan.createdAt)}</span>
         </div>
         
-        <div style="display: flex; gap: 10px;">
-          <button class="btn btn-primary" style="flex: 1;" onclick="openPlan(${plan.id})">
+        <div class="btn-group-mobile">
+          <button class="btn btn-primary" onclick="openPlan(${plan.id})">
             查看详情
           </button>
           <button class="btn btn-outline" onclick="event.stopPropagation(); deletePlan(${plan.id}, '${plan.title}')">
@@ -169,6 +195,9 @@ function renderPlans() {
     
     planGrid.appendChild(planCard);
   });
+  
+  // 渲染完成后添加滚动效果
+  setTimeout(() => addScrollEffectToOverflowText(), 100);
 }
 
 // 渲染分享计划列表
@@ -200,10 +229,10 @@ function renderSharedPlans() {
     
     planCard.innerHTML = `
       <div class="card-header">
-        <h3 class="card-title" style="margin-bottom: 5px;">${plan.title}</h3>
-        <p style="color: #6b7280; margin: 0; font-size: 14px;">${plan.description || '暂无描述'}</p>
-        <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px;">
-          <span style="font-size: 12px; color: #059669;">👤 ${sharedBy.username} 分享</span>
+        <h3 class="card-title text-scroll" style="margin-bottom: 5px;" title="${plan.title}">${plan.title}</h3>
+        <p class="text-scroll" style="color: #6b7280; margin: 0; font-size: 14px;" title="${plan.description || '暂无描述'}">${plan.description || '暂无描述'}</p>
+        <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <span class="text-scroll" style="font-size: 12px; color: #059669;" title="👤 ${sharedBy.username} 分享">👤 ${sharedBy.username} 分享</span>
           <span class="badge badge-outline-primary" style="font-size: 11px;">
             可编辑
           </span>
@@ -223,15 +252,15 @@ function renderSharedPlans() {
           </div>
         </div>
         
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-          <div style="display: flex; gap: 10px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 8px;">
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             <!-- 隐藏地图模式和分享计划标识 -->
           </div>
-          <span style="font-size: 12px; color: #9ca3af;">分享于 ${formatDate(shareInfo.sharedAt)}</span>
+          <span class="text-scroll" style="font-size: 12px; color: #9ca3af;" title="分享于 ${formatDate(shareInfo.sharedAt)}">分享于 ${formatDate(shareInfo.sharedAt)}</span>
         </div>
         
-        <div style="display: flex; gap: 10px;">
-          <button class="btn btn-primary" style="flex: 1;" onclick="openPlan(${plan.id})">
+        <div class="btn-group-mobile">
+          <button class="btn btn-primary" onclick="openPlan(${plan.id})">
             查看详情
           </button>
         </div>
@@ -240,6 +269,9 @@ function renderSharedPlans() {
     
     sharedPlanGrid.appendChild(planCard);
   });
+  
+  // 渲染完成后添加滚动效果
+  setTimeout(() => addScrollEffectToOverflowText(), 100);
 }
 
 // 更新统计信息

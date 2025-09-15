@@ -451,9 +451,11 @@ async function loadPlan() {
     
     if (planTitle) {
       planTitle.textContent = currentPlan.title;
+      planTitle.title = currentPlan.title;
     }
     if (planDescription) {
       planDescription.textContent = currentPlan.description || '暂无描述';
+      planDescription.title = currentPlan.description || '暂无描述';
     }
     
     // 设置默认地图提供商
@@ -467,6 +469,11 @@ async function loadPlan() {
     await loadDays();
     await loadFiles();
     await loadMap();
+    
+    // 应用文字滚动效果
+    setTimeout(() => {
+      addScrollEffectToOverflowText();
+    }, 100);
     
   } catch (error) {
     console.error('加载计划失败:', error);
@@ -562,7 +569,7 @@ function renderDays() {
             ${day.dayIndex}
           </div>
           <div>
-            <h3 style="margin: 0; color: #1f2937;">${day.city} ${todayBadge}</h3>
+            <h3 class="text-scroll" style="margin: 0; color: #1f2937;" title="${day.city}">${day.city} ${todayBadge}</h3>
             <p style="margin: 0; color: #6b7280; font-size: 14px;">第${day.dayIndex}天 ${day.date ? formatDate(day.date) : ''}</p>
           </div>
         </div>
@@ -590,9 +597,9 @@ function renderDays() {
               <div class="main-attraction-item" data-attraction-name="${attraction.name.replace(/"/g, '&quot;')}" style="display: flex; align-items: center; padding: 8px; margin-bottom: 6px; background: #f8fafc; border-radius: 6px; border-left: 3px solid #3b82f6; transition: all 0.2s ease;">
                 <span style="background: #3b82f6; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 12px; margin-right: 10px; flex-shrink: 0;">${index + 1}</span>
                 <div class="attraction-clickable" style="flex: 1; min-width: 0; cursor: pointer;">
-                  <div style="font-weight: 500; color: #1f2937; margin-bottom: 2px;">${attraction.name} <span style="color: #3b82f6; font-size: 12px;">📍 点击查看</span></div>
-                  ${attraction.description ? `<div style="color: #6b7280; font-size: 13px; margin-bottom: 2px;">${attraction.description}</div>` : ''}
-                  ${attraction.address ? `<div style="color: #9ca3af; font-size: 12px;"><i class="fas fa-map-marker-alt"></i> ${attraction.address}</div>` : ''}
+                  <div class="text-scroll" style="font-weight: 500; color: #1f2937; margin-bottom: 2px;" title="${attraction.name}">${attraction.name} <span style="color: #3b82f6; font-size: 12px;">📍 点击查看</span></div>
+                  ${attraction.description ? `<div class="text-scroll" style="color: #6b7280; font-size: 13px; margin-bottom: 2px;" title="${attraction.description}">${attraction.description}</div>` : ''}
+                  ${attraction.address ? `<div class="text-scroll" style="color: #9ca3af; font-size: 12px;" title="${attraction.address}"><i class="fas fa-map-marker-alt"></i> ${attraction.address}</div>` : ''}
                 </div>
                 <button type="button" onclick="copyMainAttraction(${day.id}, ${index})" style="background: #17a2b8; color: white; border: none; border-radius: 4px; padding: 4px 6px; font-size: 11px; cursor: pointer; margin-left: 8px; flex-shrink: 0;" title="复制景点">
                   <i class="fas fa-copy"></i>
@@ -635,6 +642,9 @@ function renderDays() {
         });
       }
     });
+    
+    // 应用文字滚动效果
+    addScrollEffectToOverflowText();
   }, 0);
 }
 
@@ -721,7 +731,7 @@ function renderFiles() {
         ">${getFileIcon(file.filename)}</div>
         
         <div style="flex: 1; min-width: 0;">
-          <h3 style="
+          <h3 class="text-scroll" style="
             font-weight: 700;
             color: #1f2937;
             margin: 0 0 8px 0;
@@ -805,12 +815,12 @@ function renderFiles() {
             font-size: 10px;
             font-weight: 600;
           ">描述</div>
-          <p style="
+          <p class="text-scroll" style="
             color: #0c4a6e;
             font-size: 13px;
             line-height: 1.5;
             margin: 8px 0 0 0;
-          ">${file.description}</p>
+          " title="${file.description}">${file.description}</p>
         </div>
       ` : ''}
       
@@ -902,6 +912,11 @@ function renderFiles() {
       </div>
     </div>
   `).join('');
+  
+  // 应用文字滚动效果
+  setTimeout(() => {
+    addScrollEffectToOverflowText();
+  }, 100);
 }
 
 // 更新统计信息
@@ -3579,3 +3594,29 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }, 1000);
 });
+
+// 检测文字溢出并添加滚动效果
+function addScrollEffectToOverflowText() {
+  const textScrollElements = document.querySelectorAll('.text-scroll');
+  
+  textScrollElements.forEach(element => {
+    // 检查文字是否溢出
+    if (element.scrollWidth > element.clientWidth) {
+      // 设置容器宽度CSS变量
+      element.style.setProperty('--container-width', element.clientWidth + 'px');
+      element.classList.add('auto-scroll');
+      
+      // 添加鼠标悬停暂停滚动
+      element.addEventListener('mouseenter', () => {
+        element.style.animationPlayState = 'paused';
+      });
+      
+      element.addEventListener('mouseleave', () => {
+        element.style.animationPlayState = 'running';
+      });
+    } else {
+      // 如果文字不溢出，移除滚动效果
+      element.classList.remove('auto-scroll');
+    }
+  });
+}
