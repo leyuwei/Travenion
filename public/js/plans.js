@@ -110,24 +110,29 @@ function addScrollEffectToOverflowText() {
   const textScrollElements = document.querySelectorAll('.text-scroll');
   
   textScrollElements.forEach(element => {
-    // 检查文字是否溢出
-    if (element.scrollWidth > element.clientWidth) {
-      // 设置容器宽度CSS变量
-      element.style.setProperty('--container-width', element.clientWidth + 'px');
-      element.classList.add('auto-scroll');
-      
-      // 添加鼠标悬停暂停滚动
-      element.addEventListener('mouseenter', () => {
-        element.style.animationPlayState = 'paused';
-      });
-      
-      element.addEventListener('mouseleave', () => {
-        element.style.animationPlayState = 'running';
-      });
-    } else {
-      // 如果文字不溢出，移除滚动效果
-      element.classList.remove('auto-scroll');
+    // 先移除之前的滚动效果
+    element.classList.remove('auto-scroll');
+    
+    // 如果已经有包装元素，先恢复原始文本
+    const existingContent = element.querySelector('.scroll-content');
+    if (existingContent) {
+      element.innerHTML = existingContent.textContent;
     }
+    
+    // 强制重新计算布局
+    setTimeout(() => {
+      // 检查文字是否溢出
+      if (element.scrollWidth > element.clientWidth) {
+        console.log('Text overflow detected for:', element.textContent.substring(0, 50) + '...', 'scrollWidth:', element.scrollWidth, 'clientWidth:', element.clientWidth);
+        
+        // 创建包装元素
+        const originalText = element.textContent;
+        element.innerHTML = `<span class="scroll-content">${originalText}</span>`;
+        element.classList.add('auto-scroll');
+      } else {
+        console.log('No text overflow for:', element.textContent.substring(0, 50) + '...');
+      }
+    }, 100);
   });
 }
 

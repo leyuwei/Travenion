@@ -1009,20 +1009,26 @@ p {
 .text-scroll {
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
-  position: relative;
   display: block;
-}
-
-.text-scroll:hover {
-  overflow: hidden; /* 保持隐藏，避免文字溢出到其他元素 */
+  width: 100%;
+  position: relative;
 }
 
 .text-scroll.auto-scroll {
-  animation: scroll-text 8s linear infinite;
+  text-overflow: unset;
 }
 
-@keyframes scroll-text {
+.text-scroll.auto-scroll .scroll-content {
+  display: inline-block;
+  animation: scroll-horizontal 8s linear infinite;
+  padding-right: 50px;
+}
+
+.text-scroll.auto-scroll:hover .scroll-content {
+  animation-play-state: paused;
+}
+
+@keyframes scroll-horizontal {
   0% {
     transform: translateX(0);
   }
@@ -1030,10 +1036,10 @@ p {
     transform: translateX(0);
   }
   75% {
-    transform: translateX(calc(-100% + var(--container-width, 200px)));
+    transform: translateX(calc(-100% + 100px));
   }
   100% {
-    transform: translateX(calc(-100% + var(--container-width, 200px)));
+    transform: translateX(calc(-100% + 100px));
   }
 }
 
