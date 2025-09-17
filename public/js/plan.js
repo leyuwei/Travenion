@@ -2146,6 +2146,22 @@ document.addEventListener('DOMContentLoaded', () => {
       openEditPlanModal();
     });
   }
+
+  // 导出按钮
+  const exportBtn = document.getElementById('exportBtn');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', () => {
+      showExportOptions();
+    });
+  }
+
+  // 打印按钮
+  const printBtn = document.getElementById('printBtn');
+  if (printBtn) {
+    printBtn.addEventListener('click', () => {
+      printItinerary();
+    });
+  }
   
   // 分享选项切换
   const enableSharingCheckbox = document.getElementById('enableSharing');
@@ -3719,6 +3735,394 @@ function doLinesIntersect(line1Start, line1End, line2Start, line2End) {
   if (d4 === 0 && isPointOnSegment(line2End, line1Start, line1End)) return true;
   
   return false;
+}
+
+// ==================== 导出和打印功能 ====================
+
+/**
+ * 生成行程的HTML内容用于导出和打印
+ */
+function generateItineraryHTML() {
+  if (!currentPlan || !days || days.length === 0) {
+    return '<p>暂无行程数据</p>';
+  }
+
+  let html = `
+    <div>
+      <div class="plan-header">
+        <h1>${currentPlan.title}</h1>
+        ${currentPlan.description ? `<p class="plan-description">${currentPlan.description}</p>` : ''}
+        <div class="statistics">
+          总天数: ${days.length}天 | 文件数: ${files.length}个 | 生成时间: ${new Date().toLocaleDateString('zh-CN')}
+        </div>
+      </div>
+  `;
+
+  // 按天数排序
+  const sortedDays = [...days].sort((a, b) => a.dayIndex - b.dayIndex);
+
+  sortedDays.forEach(day => {
+    html += `
+      <div class="day-section">
+        <h2>第${day.dayIndex}天 - ${day.city}</h2>
+        <h3>${formatDate(day.date)}</h3>
+    `;
+
+    if (day.attractionsList && day.attractionsList.length > 0) {
+      day.attractionsList.forEach((attraction, index) => {
+        html += `
+          <div class="attraction-item">
+            <div class="attraction-name">${index + 1}. ${attraction.name}</div>
+            <div class="attraction-details">
+              ${attraction.address ? `地址: ${attraction.address}<br>` : ''}
+              ${attraction.visitTime ? `时间: ${attraction.visitTime}<br>` : ''}
+              ${attraction.notes ? `备注: ${attraction.notes}` : ''}
+            </div>
+          </div>
+        `;
+      });
+    } else {
+      html += '<p style="color: #9ca3af; margin-left: 15px;">暂无景点安排</p>';
+    }
+
+    html += `</div>`;
+  });
+
+  html += `</div>`;
+
+  return html;
+}
+
+/**
+ * 导出行程为PDF
+ */
+async function exportToPDF() {
+  try {
+    // 动态加载html2canvas和jsPDF库
+    if (typeof window.html2canvas === 'undefined') {
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+    }
+    if (typeof window.jsPDF === 'undefined') {
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+    }
+
+    // 创建临时的HTML内容用于生成PDF
+    const tempDiv = document.createElement('div');
+    tempDiv.style.cssText = `
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      width: 794px;
+      background: white;
+      padding: 40px;
+      font-family: 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #333;
+    `;
+    
+    tempDiv.innerHTML = generateItineraryHTML();
+    document.body.appendChild(tempDiv);
+
+    // 使用html2canvas生成图片
+    const canvas = await window.html2canvas(tempDiv, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff'
+    });
+
+    // 移除临时元素
+    document.body.removeChild(tempDiv);
+
+    // 创建PDF
+    const { jsPDF } = window.jspdf;
+    const imgData = canvas.toDataURL('image/png');
+    
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const imgWidth = 210; // A4宽度
+    const pageHeight = 295; // A4高度
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    let heightLeft = imgHeight;
+    let position = 0;
+
+    // 添加第一页
+    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+
+    // 如果内容超过一页，添加更多页面
+    while (heightLeft >= 0) {
+      position = heightLeft - imgHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
+
+    // 下载文件
+    const fileName = `${currentPlan.title || '旅行计划'}_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.pdf`;
+    pdf.save(fileName);
+    
+    closeModal('exportModal');
+    showNotification('PDF导出成功！', 'success');
+
+  } catch (error) {
+    console.error('PDF导出失败:', error);
+    showNotification('PDF导出失败，请重试', 'error');
+  }
+}
+
+/**
+ * 导出行程为Word文档
+ */
+async function exportToWord() {
+  try {
+    // 动态加载docx库
+    if (typeof window.docx === 'undefined') {
+      await loadScript('https://unpkg.com/docx@7.8.2/build/index.js');
+    }
+
+    const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = window.docx;
+
+    const children = [];
+
+    // 标题
+    children.push(
+      new Paragraph({
+        children: [new TextRun({ text: currentPlan.title || '旅行计划', bold: true, size: 32 })],
+        heading: HeadingLevel.TITLE,
+        alignment: AlignmentType.CENTER,
+      })
+    );
+
+    if (currentPlan.description) {
+      children.push(
+        new Paragraph({
+          children: [new TextRun({ text: currentPlan.description, size: 24 })],
+          alignment: AlignmentType.CENTER,
+        })
+      );
+    }
+
+    // 统计信息
+    children.push(
+      new Paragraph({
+        children: [new TextRun({ text: `总天数: ${days.length}天    文件数: ${files.length}个`, size: 20 })],
+        alignment: AlignmentType.CENTER,
+      })
+    );
+
+    children.push(new Paragraph({ text: "" })); // 空行
+
+    // 行程内容
+    const sortedDays = [...days].sort((a, b) => a.dayIndex - b.dayIndex);
+
+    sortedDays.forEach(day => {
+      // 天数标题
+      children.push(
+        new Paragraph({
+          children: [new TextRun({ text: `第${day.dayIndex}天 - ${day.city}`, bold: true, size: 28 })],
+          heading: HeadingLevel.HEADING_1,
+        })
+      );
+
+      children.push(
+        new Paragraph({
+          children: [new TextRun({ text: formatDate(day.date), size: 20 })],
+        })
+      );
+
+      // 景点列表
+      if (day.attractionsList && day.attractionsList.length > 0) {
+        day.attractionsList.forEach((attraction, index) => {
+          children.push(
+            new Paragraph({
+              children: [new TextRun({ text: `${index + 1}. ${attraction.name}`, bold: true, size: 22 })],
+            })
+          );
+
+          if (attraction.address) {
+            children.push(
+              new Paragraph({
+                children: [new TextRun({ text: `地址: ${attraction.address}`, size: 20 })],
+              })
+            );
+          }
+
+          if (attraction.visitTime) {
+            children.push(
+              new Paragraph({
+                children: [new TextRun({ text: `时间: ${attraction.visitTime}`, size: 20 })],
+              })
+            );
+          }
+
+          if (attraction.notes) {
+            children.push(
+              new Paragraph({
+                children: [new TextRun({ text: `备注: ${attraction.notes}`, size: 20 })],
+              })
+            );
+          }
+
+          children.push(new Paragraph({ text: "" })); // 空行
+        });
+      } else {
+        children.push(
+          new Paragraph({
+            children: [new TextRun({ text: '暂无景点安排', size: 20 })],
+          })
+        );
+      }
+
+      children.push(new Paragraph({ text: "" })); // 空行
+    });
+
+    const doc = new Document({
+      sections: [{
+        properties: {},
+        children: children,
+      }],
+    });
+
+    const blob = await Packer.toBlob(doc);
+    const fileName = `${currentPlan.title || '旅行计划'}_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.docx`;
+    
+    // 下载文件
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = fileName;
+    link.click();
+    
+    showNotification('Word文档导出成功！', 'success');
+  } catch (error) {
+    console.error('Word导出失败:', error);
+    showNotification('Word导出失败，请稍后重试', 'error');
+  }
+}
+
+/**
+ * 显示导出选项
+ */
+function showExportOptions() {
+  openModal('exportModal');
+}
+
+/**
+ * 打印行程
+ */
+function printItinerary() {
+  const printContent = generateItineraryHTML();
+  const printWindow = window.open('', '_blank');
+  
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>${currentPlan.title || '旅行计划'} - 打印</title>
+      <meta charset="UTF-8">
+      <style>
+        @media print {
+          body { margin: 0; }
+          .no-print { display: none; }
+        }
+        body {
+          font-family: 'Microsoft YaHei', Arial, sans-serif;
+          line-height: 1.3;
+          color: #333;
+          font-size: 12px;
+        }
+        @page {
+          margin: 15mm;
+          size: A4;
+        }
+        h1 {
+          font-size: 18px;
+          margin: 0 0 8px 0;
+          color: #2563eb;
+        }
+        h2 {
+          font-size: 14px;
+          margin: 8px 0 4px 0;
+          color: #1f2937;
+        }
+        h3 {
+          font-size: 13px;
+          margin: 6px 0 3px 0;
+          color: #374151;
+        }
+        p {
+          margin: 2px 0;
+          font-size: 11px;
+        }
+        .day-section {
+          margin-bottom: 12px;
+          page-break-inside: avoid;
+        }
+        .attraction-item {
+          margin: 3px 0 6px 15px;
+          padding: 2px 0;
+        }
+        .attraction-name {
+          font-weight: bold;
+          font-size: 12px;
+          margin-bottom: 1px;
+        }
+        .attraction-details {
+          font-size: 10px;
+          color: #6b7280;
+          margin-left: 8px;
+        }
+        .plan-description {
+          font-size: 11px;
+          margin: 4px 0 8px 0;
+          color: #4b5563;
+        }
+        .statistics {
+          font-size: 10px;
+          color: #6b7280;
+          margin: 6px 0 12px 0;
+        }
+        ul, ol {
+          margin: 4px 0;
+          padding-left: 20px;
+        }
+        li {
+          margin: 1px 0;
+          font-size: 11px;
+        }
+      </style>
+    </head>
+    <body>
+      ${printContent}
+      <div class="no-print" style="text-align: center; margin-top: 20px;">
+        <button onclick="window.print()" style="padding: 10px 20px; background: #2563eb; color: white; border: none; border-radius: 5px; cursor: pointer;">打印</button>
+        <button onclick="window.close()" style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px;">关闭</button>
+      </div>
+    </body>
+    </html>
+  `);
+  
+  printWindow.document.close();
+  
+  // 等待内容加载完成后自动打印
+  printWindow.onload = function() {
+    setTimeout(() => {
+      printWindow.print();
+    }, 500);
+  };
+}
+
+/**
+ * 动态加载脚本
+ */
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = src;
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
 }
 
 // 更新路线交叉警告显示

@@ -93,9 +93,19 @@
     <!-- 行程安排 -->
     <div class="card fade-in">
       <div class="card-header">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
           <h2 class="card-title">📋 行程安排</h2>
-          <button id="addDayBtn" class="btn btn-primary">+ 添加行程</button>
+          <div class="itinerary-actions" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <button id="exportBtn" class="btn btn-outline" title="导出行程">
+              <i class="fas fa-download"></i>
+              <span class="btn-text">导出</span>
+            </button>
+            <button id="printBtn" class="btn btn-outline" title="打印行程">
+              <i class="fas fa-print"></i>
+              <span class="btn-text">打印</span>
+            </button>
+            <button id="addDayBtn" class="btn btn-primary">+ 添加行程</button>
+          </div>
         </div>
       </div>
       <div id="dayListContainer">
@@ -309,6 +319,41 @@
           <span id="attractionSaveText">保存</span>
           <span class="loading" style="display: none;"></span>
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 导出选项模态框 -->
+  <div id="exportModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 style="margin: 0;">导出行程</h2>
+        <button class="close" onclick="closeModal('exportModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="export-options">
+          <div class="export-option" onclick="exportToPDF()">
+            <div class="export-icon">
+              <i class="fas fa-file-pdf"></i>
+            </div>
+            <div class="export-info">
+              <h3>导出为PDF</h3>
+              <p>生成可打印的PDF文档，适合保存和分享</p>
+            </div>
+          </div>
+          <div class="export-option" onclick="exportToWord()">
+            <div class="export-icon">
+              <i class="fas fa-file-word"></i>
+            </div>
+            <div class="export-info">
+              <h3>导出为Word</h3>
+              <p>生成可编辑的Word文档，方便进一步修改</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('exportModal')">取消</button>
       </div>
     </div>
   </div>

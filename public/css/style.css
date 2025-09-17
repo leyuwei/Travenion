@@ -2011,3 +2011,165 @@ p {
     opacity: 1;
   }
 }
+
+/* 行程操作按钮样式 */
+.itinerary-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.itinerary-actions .btn {
+  white-space: nowrap;
+  min-width: auto;
+}
+
+.itinerary-actions .btn i {
+  font-size: 14px;
+}
+
+.itinerary-actions .btn .btn-text {
+  margin-left: 6px;
+}
+
+/* 移动端响应式设计 */
+@media (max-width: 768px) {
+  .itinerary-actions {
+    width: 100%;
+    justify-content: flex-end;
+    margin-top: 10px;
+  }
+  
+  .itinerary-actions .btn {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+  
+  .itinerary-actions .btn .btn-text {
+    display: none;
+  }
+  
+  .itinerary-actions .btn i {
+    font-size: 16px;
+    margin: 0;
+  }
+  
+  .card-header > div {
+    flex-direction: column;
+    align-items: flex-start !important;
+  }
+  
+  .card-title {
+    margin-bottom: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .itinerary-actions {
+    gap: 6px;
+  }
+  
+  .itinerary-actions .btn {
+    padding: 6px 10px;
+    min-width: 40px;
+  }
+  
+  .itinerary-actions .btn i {
+    font-size: 14px;
+  }
+}
+
+/* 导出和打印按钮特殊样式 */
+#exportBtn {
+  border-color: #059669;
+  color: #059669;
+}
+
+#exportBtn:hover {
+  background: #059669;
+  color: white;
+}
+
+#printBtn {
+  border-color: #7c3aed;
+  color: #7c3aed;
+}
+
+#printBtn:hover {
+  background: #7c3aed;
+  color: white;
+}
+
+/* 导出选项模态框样式 */
+.export-options {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.export-option {
+  display: flex;
+  align-items: center;
+  padding: 20px;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: #f8fafc;
+}
+
+.export-option:hover {
+  border-color: var(--primary-color);
+  background: #f1f5f9;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.export-icon {
+  font-size: 2.5rem;
+  margin-right: 20px;
+  width: 60px;
+  text-align: center;
+}
+
+.export-option:first-child .export-icon {
+  color: #dc2626; /* PDF红色 */
+}
+
+.export-option:last-child .export-icon {
+  color: #2563eb; /* Word蓝色 */
+}
+
+.export-info h3 {
+  margin: 0 0 5px 0;
+  font-size: 1.2rem;
+  color: var(--text-color);
+}
+
+.export-info p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+/* 移动端导出选项优化 */
+@media (max-width: 480px) {
+  .export-option {
+    padding: 15px;
+  }
+  
+  .export-icon {
+    font-size: 2rem;
+    margin-right: 15px;
+    width: 50px;
+  }
+  
+  .export-info h3 {
+    font-size: 1.1rem;
+  }
+  
+  .export-info p {
+    font-size: 0.85rem;
+  }
+}
