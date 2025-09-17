@@ -450,10 +450,13 @@ async function addMapMarkers() {
       const dayAttractions = day.attractionsList || [];
       dayAttractions.sort((a, b) => (a.visitOrder || 0) - (b.visitOrder || 0));
       
-      // 为每个景点添加天数信息用于全局排序
-      dayAttractions.forEach(attraction => {
+      // 为每个景点添加天数和景点序号信息
+      dayAttractions.forEach((attraction, index) => {
         attraction.dayIndex = day.dayIndex;
         attraction.dayCity = day.city;
+        attraction.dayNumber = day.dayIndex; // 使用原始的dayIndex
+        attraction.attractionOrder = index + 1;  // 景点序号从1开始
+        attraction.markerLabel = `${day.dayIndex}-${index + 1}`; // 新的标记格式
         allAttractions.push(attraction);
       });
     }
@@ -467,7 +470,6 @@ async function addMapMarkers() {
     });
 
     const globalPath = [];
-    let markerIndex = 1;
     
     for (const attraction of allAttractions) {
       if ((!attraction.latitude || !attraction.longitude) && attraction.address) {
@@ -488,17 +490,17 @@ async function addMapMarkers() {
         
         // 添加带编号的自定义图标
         const customIcon = L.divIcon({
-          html: `<div style="background-color: #f59e0b; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${markerIndex}</div>`,
+          html: `<div style="background-color: #f59e0b; color: white; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 10px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${attraction.markerLabel}</div>`,
           className: 'custom-marker',
-          iconSize: [24, 24],
-          iconAnchor: [12, 12]
+          iconSize: [28, 28],
+          iconAnchor: [14, 14]
         });
         marker.setIcon(customIcon);
         
         marker.bindPopup(`
           <div style="padding: 10px; max-width: 250px;">
             <h5 style="margin: 0 0 8px 0; color: #1f2937;">${attraction.name}</h5>
-            <div style="margin-bottom: 6px; font-size: 13px; color: #6b7280;">第${attraction.dayIndex}天 - 景点${markerIndex}</div>
+            <div style="margin-bottom: 6px; font-size: 13px; color: #6b7280;">第${attraction.dayNumber}天 - 景点${attraction.markerLabel}</div>
             ${attraction.address ? `<div style="margin-bottom: 6px; font-size: 13px;">📍 ${attraction.address}</div>` : ''}
             ${attraction.description ? `<div style="font-size: 13px;">📝 ${attraction.description}</div>` : ''}
           </div>`);
@@ -506,7 +508,6 @@ async function addMapMarkers() {
         markers.push(marker);
         globalPath.push([attraction.latitude, attraction.longitude]);
         bounds.extend([attraction.latitude, attraction.longitude]);
-        markerIndex++;
       }
     }
 

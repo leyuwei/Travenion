@@ -620,6 +620,19 @@ function renderDays() {
               </div>
             `).join('')}
           </div>
+          ${(() => {
+            // 检查路线交叉
+            const hasCrossing = checkRouteCrossing(day.attractionsList);
+            return hasCrossing ? `
+              <div style="margin-top: 10px; padding: 12px; background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%); border-radius: 8px; border-left: 4px solid #ef4444; display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-exclamation-triangle" style="color: #ef4444; font-size: 16px; flex-shrink: 0;"></i>
+                <div style="flex: 1;">
+                  <div style="color: #dc2626; font-weight: 600; font-size: 14px; margin-bottom: 2px;">⚠️ 路线交叉警告</div>
+                  <div style="color: #7f1d1d; font-size: 13px;">当前景点路线存在交叉，可能会走冤枉路。建议重新调整景点顺序以优化路线。</div>
+                </div>
+              </div>
+            ` : '';
+          })()}
         ` : `
           <div style="margin-top: 5px; padding: 15px; background: #f8fafc; border-radius: 8px; text-align: center; color: #6b7280; font-style: italic;">
             暂无景点安排
@@ -1054,7 +1067,6 @@ async function addMapMarkers() {
     
     // 收集所有景点数据
     const allAttractions = [];
-    let globalIndex = 1;
     
     for (const day of sortedDays) {
       let dayAttractions = [];
@@ -1073,13 +1085,15 @@ async function addMapMarkers() {
       // 按访问顺序排序当天景点
       dayAttractions.sort((a, b) => (a.visitOrder || 0) - (b.visitOrder || 0));
       
-      // 为每个景点添加全局信息
-      dayAttractions.forEach(attraction => {
+      // 为每个景点添加天数和景点序号信息
+      dayAttractions.forEach((attraction, index) => {
         allAttractions.push({
           ...attraction,
           dayIndex: day.dayIndex,
           dayCity: day.city,
-          globalOrder: globalIndex++
+          dayNumber: day.dayIndex, // 使用原始的dayIndex
+          attractionOrder: index + 1,  // 景点序号从1开始
+          markerLabel: `${day.dayIndex}-${index + 1}` // 新的标记格式
         });
       });
     }
@@ -1161,21 +1175,21 @@ async function addMapMarkers() {
               background: linear-gradient(135deg, #007bff, #0056b3);
               color: white;
               border-radius: 50%;
-              width: 32px;
-              height: 32px;
+              width: 36px;
+              height: 36px;
               display: flex;
               align-items: center;
               justify-content: center;
               font-weight: bold;
-              font-size: 14px;
+              font-size: 12px;
               border: 3px solid white;
               box-shadow: 0 3px 6px rgba(0,0,0,0.4);
               cursor: pointer;
-            ">${attraction.globalOrder}</div>
+            ">${attraction.markerLabel}</div>
           `,
-          iconSize: [32, 32],
-          iconAnchor: [16, 16],
-          popupAnchor: [0, -16]
+          iconSize: [36, 36],
+          iconAnchor: [18, 18],
+          popupAnchor: [0, -18]
         });
         
         // 创建并添加标记
@@ -1186,7 +1200,7 @@ async function addMapMarkers() {
           <div style="min-width: 220px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
             <div style="background: linear-gradient(135deg, #007bff, #0056b3); color: white; margin: -9px -9px 12px -9px; padding: 12px; border-radius: 4px 4px 0 0;">
               <h4 style="margin: 0; font-size: 16px; font-weight: 600;">${attraction.name}</h4>
-              <div style="font-size: 12px; opacity: 0.9; margin-top: 4px;">第${attraction.dayIndex}天 · 景点${attraction.globalOrder}</div>
+              <div style="font-size: 12px; opacity: 0.9; margin-top: 4px;">第${attraction.dayNumber}天 · 景点${attraction.markerLabel}</div>
             </div>
             ${attraction.address ? `<div style="margin-bottom: 8px; font-size: 13px; color: #555;"><strong>📍 地址:</strong> ${attraction.address}</div>` : ''}
             ${attraction.description ? `<div style="font-size: 13px; color: #666; line-height: 1.4;"><strong>📝 描述:</strong> ${attraction.description}</div>` : ''}
@@ -1214,7 +1228,7 @@ async function addMapMarkers() {
         pathCoordinates.push([lat, lng]);
         bounds.extend([lat, lng]);
         
-        console.log(`添加标记: ${attraction.name} (${attraction.globalOrder})`);
+        console.log(`添加标记: ${attraction.name} (${attraction.markerLabel})`);
       } else {
         console.warn(`跳过无效坐标的景点: ${attraction.name}`);
         // 收集无法定位的景点信息
@@ -1265,6 +1279,9 @@ async function addMapMarkers() {
     }
     
     console.log(`OpenStreetMap处理完成: ${validAttractions.length}/${allAttractions.length} 个景点成功显示`);
+    
+    // 地理编码完成后，更新路线交叉检测
+    updateRouteCrossingWarnings();
 
   } else if (mapProvider === 'baidu' && typeof BMap !== 'undefined') {
     const geocoder = new BMap.Geocoder();
@@ -1286,10 +1303,13 @@ async function addMapMarkers() {
 
       dayAttractions.sort((a, b) => (a.visitOrder || 0) - (b.visitOrder || 0));
       
-      // 为每个景点添加天数信息用于全局排序
-      dayAttractions.forEach(attraction => {
+      // 为每个景点添加天数和景点序号信息
+      dayAttractions.forEach((attraction, index) => {
         attraction.dayIndex = day.dayIndex;
         attraction.dayCity = day.city;
+        attraction.dayNumber = day.dayIndex; // 使用原始的dayIndex
+        attraction.attractionOrder = index + 1;  // 景点序号从1开始
+        attraction.markerLabel = `${day.dayIndex}-${index + 1}`; // 新的标记格式
         allAttractions.push(attraction);
       });
     }
@@ -1303,7 +1323,6 @@ async function addMapMarkers() {
     });
 
     const globalPathPoints = [];
-    let markerIndex = 1;
     
     for (const attraction of allAttractions) {
       const point = await new Promise(resolve => {
@@ -1327,16 +1346,16 @@ async function addMapMarkers() {
 
       if (point) {
         const marker = new BMap.Marker(point);
-        const label = new BMap.Label(markerIndex.toString(), { offset: new BMap.Size(0, -20) });
+        const label = new BMap.Label(attraction.markerLabel, { offset: new BMap.Size(0, -20) });
         label.setStyle({
           color: '#ffffff',
           backgroundColor: '#f59e0b',
           border: '2px solid #ffffff',
           borderRadius: '50%',
-          padding: '3px 6px',
+          padding: '2px 5px',
           fontWeight: 'bold',
           textAlign: 'center',
-          fontSize: '12px'
+          fontSize: '10px'
         });
         marker.setLabel(label);
         map.addOverlay(marker);
@@ -1344,7 +1363,7 @@ async function addMapMarkers() {
         const infoWindow = new BMap.InfoWindow(`
           <div style="padding: 10px;">
             <h5 style="margin: 0 0 8px 0;">${attraction.name}</h5>
-            <p style="margin: 4px 0; color: #666; font-size: 13px;">第${attraction.dayIndex}天 - 景点${markerIndex}</p>
+            <p style="margin: 4px 0; color: #666; font-size: 13px;">第${attraction.dayNumber}天 - 景点${attraction.markerLabel}</p>
             ${attraction.address ? `<p><strong>地址:</strong> ${attraction.address}</p>` : ''}
             ${attraction.description ? `<p><strong>描述:</strong> ${attraction.description}</p>` : ''}
           </div>`);
@@ -1367,7 +1386,6 @@ async function addMapMarkers() {
         
         globalPathPoints.push(point);
         viewportPoints.push(point);
-        markerIndex++;
       }
     }
 
@@ -1385,6 +1403,9 @@ async function addMapMarkers() {
     if (viewportPoints.length > 0) {
       map.setViewport(viewportPoints);
     }
+    
+    // 地理编码完成后，更新路线交叉检测
+    updateRouteCrossingWarnings();
   }
 }
 
@@ -3406,43 +3427,47 @@ function syncMarkersToMiniMap() {
             background: #007bff;
             color: white;
             border-radius: 50%;
-            width: 20px;
-            height: 20px;
+            width: 24px;
+            height: 24px;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: bold;
-            font-size: 10px;
+            font-size: 8px;
             border: 2px solid white;
             box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-          ">${attraction.globalOrder || '•'}</div>
+          ">${attraction.markerLabel || '•'}</div>
         `,
-        iconSize: [20, 20],
-        iconAnchor: [10, 10],
-        popupAnchor: [0, -10]
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+        popupAnchor: [0, -12]
       });
       
       const miniMarker = L.marker([lat, lng], { icon: miniMarkerIcon })
-        .bindPopup(`<strong>${attraction.name}</strong><br>第${attraction.dayIndex}天`)
+        .bindPopup(`<strong>${attraction.name}</strong><br>第${attraction.dayNumber}天 · 景点${attraction.markerLabel}`)
         .addTo(miniMap);
         
     } else if (mapProvider === 'baidu') {
       const point = new BMap.Point(lng, lat);
       
-      // 创建简单的圆形标记图标，避免中文字符编码问题
-      const svgContent = `<svg width="20" height="20" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="8" fill="#007bff" stroke="white" stroke-width="2"/><circle cx="10" cy="10" r="3" fill="white"/></svg>`;
+      // 创建带编号的标记图标
+      const markerLabel = attraction.markerLabel || '•';
+      const svgContent = `<svg width="24" height="24" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="12" cy="12" r="10" fill="#007bff" stroke="white" stroke-width="2"/>
+        <text x="12" y="16" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="8" font-weight="bold">${markerLabel}</text>
+      </svg>`;
       const icon = new BMap.Icon(
         `data:image/svg+xml;base64,${btoa(svgContent)}`,
-        new BMap.Size(20, 20),
-        { anchor: new BMap.Size(10, 10) }
+        new BMap.Size(24, 24),
+        { anchor: new BMap.Size(12, 12) }
       );
       
       const miniMarker = new BMap.Marker(point, { icon });
       miniMap.addOverlay(miniMarker);
       
-      const infoWindow = new BMap.InfoWindow(attraction.name, {
-        width: 120,
-        height: 30,
+      const infoWindow = new BMap.InfoWindow(`<strong>${attraction.name}</strong><br>第${attraction.dayNumber}天 · 景点${markerLabel}`, {
+        width: 150,
+        height: 50,
         title: false
       });
       miniMarker.addEventListener('click', () => {
@@ -3634,4 +3659,173 @@ function addScrollEffectToOverflowText() {
       }
     }, 100);
   });
+}
+
+// ==================== 路线交叉检测算法 ====================
+
+/**
+ * 计算向量的叉积
+ * @param {Object} p1 点1 {lat, lng}
+ * @param {Object} p2 点2 {lat, lng}
+ * @param {Object} p3 点3 {lat, lng}
+ * @returns {number} 叉积值
+ */
+function crossProduct(p1, p2, p3) {
+  return (p2.lng - p1.lng) * (p3.lat - p1.lat) - (p2.lat - p1.lat) * (p3.lng - p1.lng);
+}
+
+/**
+ * 检查点是否在线段上
+ * @param {Object} point 点 {lat, lng}
+ * @param {Object} lineStart 线段起点 {lat, lng}
+ * @param {Object} lineEnd 线段终点 {lat, lng}
+ * @returns {boolean} 是否在线段上
+ */
+function isPointOnSegment(point, lineStart, lineEnd) {
+  const minLat = Math.min(lineStart.lat, lineEnd.lat);
+  const maxLat = Math.max(lineStart.lat, lineEnd.lat);
+  const minLng = Math.min(lineStart.lng, lineEnd.lng);
+  const maxLng = Math.max(lineStart.lng, lineEnd.lng);
+  
+  return point.lat >= minLat && point.lat <= maxLat && 
+         point.lng >= minLng && point.lng <= maxLng;
+}
+
+/**
+ * 检查两条线段是否相交
+ * @param {Object} line1Start 线段1起点 {lat, lng}
+ * @param {Object} line1End 线段1终点 {lat, lng}
+ * @param {Object} line2Start 线段2起点 {lat, lng}
+ * @param {Object} line2End 线段2终点 {lat, lng}
+ * @returns {boolean} 是否相交
+ */
+function doLinesIntersect(line1Start, line1End, line2Start, line2End) {
+  // 计算四个叉积
+  const d1 = crossProduct(line2Start, line2End, line1Start);
+  const d2 = crossProduct(line2Start, line2End, line1End);
+  const d3 = crossProduct(line1Start, line1End, line2Start);
+  const d4 = crossProduct(line1Start, line1End, line2End);
+  
+  // 一般情况：两条线段相交
+  if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+      ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) {
+    return true;
+  }
+  
+  // 特殊情况：点在线段上
+  if (d1 === 0 && isPointOnSegment(line1Start, line2Start, line2End)) return true;
+  if (d2 === 0 && isPointOnSegment(line1End, line2Start, line2End)) return true;
+  if (d3 === 0 && isPointOnSegment(line2Start, line1Start, line1End)) return true;
+  if (d4 === 0 && isPointOnSegment(line2End, line1Start, line1End)) return true;
+  
+  return false;
+}
+
+// 更新路线交叉警告显示
+async function updateRouteCrossingWarnings() {
+  try {
+    console.log('开始更新路线交叉警告...');
+    
+    // 重新加载天数数据以获取最新的景点信息
+    await loadDays();
+    
+    // 重新渲染天数显示，这会触发路线交叉检测
+    renderDays();
+    
+    console.log('路线交叉警告更新完成');
+  } catch (error) {
+    console.error('更新路线交叉警告失败:', error);
+  }
+}
+
+/**
+ * 检查一天的景点路线是否存在交叉
+ * @param {Array} attractions 景点列表，每个景点包含坐标信息
+ * @returns {boolean} 是否存在路线交叉
+ */
+function checkRouteCrossing(attractions) {
+  // 基本检查：景点列表为空或无效
+  if (!attractions || attractions.length === 0) {
+    return false;
+  }
+  
+  const coordinates = [];
+  
+  // 提取有效坐标
+  for (const attraction of attractions) {
+    let lat, lng;
+    
+    if (attraction.coordinates && attraction.coordinates.length === 2) {
+      // 直接使用坐标
+      [lat, lng] = attraction.coordinates;
+    } else if (attraction.address && isCoordinateFormat(attraction.address)) {
+      // 从地址中解析坐标
+      const coords = attraction.address.split(',').map(coord => parseFloat(coord.trim()));
+      if (coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
+        [lat, lng] = coords;
+      }
+    }
+    
+    if (lat !== undefined && lng !== undefined && !isNaN(lat) && !isNaN(lng)) {
+      coordinates.push({ lat, lng, name: attraction.name });
+    }
+  }
+  
+  // 少于4个有效坐标点不可能形成交叉（需要至少2条不相邻的线段）
+  if (coordinates.length < 4) {
+    return false;
+  }
+  
+  // 检查所有线段对是否相交（不包括相邻线段和共享端点的线段）
+  for (let i = 0; i < coordinates.length - 1; i++) {
+    for (let j = i + 2; j < coordinates.length - 1; j++) {
+      const line1Start = coordinates[i];
+      const line1End = coordinates[i + 1];
+      const line2Start = coordinates[j];
+      const line2End = coordinates[j + 1];
+      
+      // 检查是否有共享端点（这种情况不算交叉）
+      const hasSharedEndpoint = (
+        (line1Start.lat === line2Start.lat && line1Start.lng === line2Start.lng) ||
+        (line1Start.lat === line2End.lat && line1Start.lng === line2End.lng) ||
+        (line1End.lat === line2Start.lat && line1End.lng === line2Start.lng) ||
+        (line1End.lat === line2End.lat && line1End.lng === line2End.lng)
+      );
+      
+      // 如果有共享端点，跳过检查
+      if (hasSharedEndpoint) {
+        continue;
+      }
+      
+      // 检查线段是否真正相交（不包括端点接触）
+      if (doLinesIntersectStrict(line1Start, line1End, line2Start, line2End)) {
+        return true;
+      }
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * 严格检查两条线段是否相交（不包括端点接触的情况）
+ * @param {Object} line1Start 线段1起点 {lat, lng}
+ * @param {Object} line1End 线段1终点 {lat, lng}
+ * @param {Object} line2Start 线段2起点 {lat, lng}
+ * @param {Object} line2End 线段2终点 {lat, lng}
+ * @returns {boolean} 是否相交
+ */
+function doLinesIntersectStrict(line1Start, line1End, line2Start, line2End) {
+  const d1 = crossProduct(line2Start, line2End, line1Start);
+  const d2 = crossProduct(line2Start, line2End, line1End);
+  const d3 = crossProduct(line1Start, line1End, line2Start);
+  const d4 = crossProduct(line1Start, line1End, line2End);
+  
+  // 严格相交：两条线段必须在对方的两侧
+  if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+      ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) {
+    return true;
+  }
+  
+  return false;
 }
