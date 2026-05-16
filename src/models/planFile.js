@@ -8,6 +8,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING,
       allowNull: true
     },
+    friendlyName: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: '用户自定义的简短友好名称'
+    },
     path: {
       type: DataTypes.STRING,
       allowNull: false
@@ -23,6 +28,12 @@ module.exports = (sequelize, DataTypes) => {
     description: {
       type: DataTypes.TEXT,
       allowNull: true
+    },
+    displayOrder: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 0,
+      comment: '文件显示顺序'
     },
     uploadedAt: {
       type: DataTypes.DATE,

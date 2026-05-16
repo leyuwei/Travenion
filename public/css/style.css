@@ -2173,3 +2173,241 @@ p {
     font-size: 0.85rem;
   }
 }
+
+/* 文件列表项样式 - 响应式 */
+.file-list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  margin-bottom: 8px;
+  transition: all 0.2s ease;
+  cursor: default;
+}
+
+.file-list-item:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.12);
+}
+
+.file-drag-handle {
+  color: #cbd5e1;
+  cursor: grab;
+  font-size: 16px;
+  padding: 4px;
+  flex-shrink: 0;
+  transition: color 0.2s;
+}
+
+.file-drag-handle:hover {
+  color: #64748b;
+}
+
+.file-drag-handle:active {
+  cursor: grabbing;
+}
+
+.file-icon-box {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  color: white;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.file-info-section {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.file-display-name {
+  font-weight: 600;
+  color: #1f2937;
+  font-size: 14px;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-original-name {
+  color: #9ca3af;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+.file-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.file-meta-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.file-meta-size {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.file-meta-type {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.file-meta-date {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.file-desc-preview {
+  color: #6b7280;
+  font-size: 12px;
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-actions-group {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.file-action-btn {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.file-action-download {
+  background: #eff6ff;
+  color: #3b82f6;
+}
+
+.file-action-download:hover {
+  background: #3b82f6;
+  color: white;
+}
+
+.file-action-edit {
+  background: #fffbeb;
+  color: #f59e0b;
+}
+
+.file-action-edit:hover {
+  background: #f59e0b;
+  color: white;
+}
+
+.file-action-delete {
+  background: #fef2f2;
+  color: #ef4444;
+}
+
+.file-action-delete:hover {
+  background: #ef4444;
+  color: white;
+}
+
+/* 文件列表移动端适配 */
+@media (max-width: 768px) {
+  .file-list-item {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+  
+  .file-icon-box {
+    width: 36px;
+    height: 36px;
+    font-size: 1rem;
+  }
+  
+  .file-display-name {
+    font-size: 13px;
+  }
+  
+  .file-actions-group {
+    gap: 4px;
+  }
+  
+  .file-action-btn {
+    width: 30px;
+    height: 30px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .file-list-item {
+    flex-wrap: wrap;
+    padding: 10px;
+    gap: 6px;
+  }
+  
+  .file-drag-handle {
+    display: none;
+  }
+  
+  .file-info-section {
+    flex: 1;
+    min-width: calc(100% - 50px);
+  }
+  
+  .file-actions-group {
+    width: 100%;
+    justify-content: flex-end;
+    padding-top: 6px;
+    border-top: 1px solid #f1f5f9;
+  }
+  
+  .file-action-btn {
+    flex: 1;
+    height: 36px;
+    border-radius: 8px;
+  }
+}
+
+/* 地理编码搜索结果样式 */
+.geocode-result-item {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.geocode-result-item:last-child {
+  border-bottom: none;
+}
+
+.geocode-result-item:hover {
+  background: #f0f9ff;
+}

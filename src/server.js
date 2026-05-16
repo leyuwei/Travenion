@@ -31,12 +31,12 @@ app.use('/travenion/api/attractions', attractionRoutes);
 const start = async () => {
   try {
     // 按依赖顺序同步表
-    await db.User.sync();
-    await db.TravelPlan.sync();
-    await db.PlanDay.sync();
-    await db.PlanFile.sync();
-    await db.Attraction.sync();
-    await db.PlanShare.sync();
+    await db.User.sync({ alter: true });
+    await db.TravelPlan.sync({ alter: true });
+    await db.PlanDay.sync({ alter: true });
+    await db.PlanFile.sync({ alter: true });
+    await db.Attraction.sync({ alter: true });
+    await db.PlanShare.sync({ alter: true });
     
     app.listen(config.app.port, () => console.log(`服务器已在端口${config.app.port}启动`));
   } catch (e) {

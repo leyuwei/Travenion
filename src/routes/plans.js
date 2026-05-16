@@ -95,7 +95,7 @@ router.get('/shared/:token/files', async (req, res) => {
     
     const files = await PlanFile.findAll({
       where: { planId: plan.id },
-      order: [['createdAt', 'DESC']]
+      order: [['displayOrder', 'ASC'], ['createdAt', 'DESC']]
     });
     
     res.json(files);
@@ -427,6 +427,39 @@ router.delete('/:id/days/:dayId', async (req, res) => {
   res.status(204).end();
 });
 
+router.put('/:id/files/reorder', async (req, res) => {
+  try {
+    const { fileOrders } = req.body;
+    if (!fileOrders || !Array.isArray(fileOrders)) {
+      return res.status(400).json({ message: '无效的排序数据' });
+    }
+    
+    let plan = await TravelPlan.findOne({ where: { id: req.params.id, userId: req.user.id } });
+    if (!plan) {
+      const share = await PlanShare.findOne({
+        where: { planId: req.params.id, sharedWithUserId: req.user.id }
+      });
+      if (share) {
+        plan = await TravelPlan.findOne({ where: { id: req.params.id } });
+      }
+    }
+    
+    if (!plan) return res.status(404).json({ message: '未找到计划' });
+    
+    for (const item of fileOrders) {
+      await PlanFile.update(
+        { displayOrder: item.order },
+        { where: { id: item.fileId, planId: plan.id } }
+      );
+    }
+    
+    res.json({ message: '排序更新成功' });
+  } catch (error) {
+    console.error('更新文件排序失败:', error);
+    res.status(500).json({ message: '更新文件排序失败', error: error.message });
+  }
+});
+
 router.get('/:id/files', async (req, res) => {
   try {
     // 首先检查是否是计划所有者
@@ -447,7 +480,7 @@ router.get('/:id/files', async (req, res) => {
     }
     
     if (!plan) return res.status(404).json({ message: '未找到' });
-    const files = await PlanFile.findAll({ where: { planId: plan.id }, order: [['createdAt', 'DESC']] });
+    const files = await PlanFile.findAll({ where: { planId: plan.id }, order: [['displayOrder', 'ASC'], ['createdAt', 'DESC']] });
     res.json(files);
   } catch (error) {
     console.error('获取计划文件失败:', error);
@@ -592,15 +625,19 @@ router.post('/:id/files', upload.single('file'), async (req, res) => {
     
     if (!plan) return res.status(404).json({ message: '未找到计划' });
     
-    // 处理中文文件名编码
     const originalname = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
     
+    const maxOrder = await PlanFile.max('displayOrder', {
+      where: { planId: plan.id }
+    }) || 0;
+    
     const file = await PlanFile.create({ 
-      filename: req.file.filename, // 服务器生成的文件名
-      originalName: originalname, // 用户上传的原始文件名
+      filename: req.file.filename,
+      originalName: originalname,
       path: req.file.path,
       fileSize: req.file.size,
       mimeType: req.file.mimetype,
+      displayOrder: maxOrder + 1,
       planId: plan.id 
     });
     res.status(201).json(file);

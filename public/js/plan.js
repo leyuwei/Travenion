@@ -705,241 +705,179 @@ function renderFiles() {
   
   emptyState.style.display = 'none';
   
-  container.innerHTML = files.map(file => `
-    <div class="file-card" style="
-      background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-      border: 1px solid #e2e8f0;
-      border-radius: 16px;
-      padding: 20px;
-      margin-bottom: 16px;
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      position: relative;
-      overflow: hidden;
-    " onmouseover="
-      this.style.transform='translateY(-4px) scale(1.02)';
-      this.style.boxShadow='0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)';
-      this.style.borderColor='#3b82f6';
-    " onmouseout="
-      this.style.transform='translateY(0) scale(1)';
-      this.style.boxShadow='0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
-      this.style.borderColor='#e2e8f0';
-    ">
-      
-      <!-- 装饰性渐变条 -->
-      <div style="
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 4px;
-        background: linear-gradient(90deg, #3b82f6, #8b5cf6, #06b6d4);
-      "></div>
-      
-      <!-- 文件头部信息 -->
-      <div style="display: flex; align-items: flex-start; margin-bottom: 16px;">
-        <div style="
-          background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-          color: white;
-          border-radius: 12px;
-          width: 56px;
-          height: 56px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 1.5rem;
-          margin-right: 16px;
-          flex-shrink: 0;
-          box-shadow: 0 4px 14px 0 rgba(59, 130, 246, 0.39);
-        ">${getFileIcon(file.filename)}</div>
-        
-        <div style="flex: 1; min-width: 0;">
-          <h3 class="text-scroll" style="
-            font-weight: 700;
-            color: #1f2937;
-            margin: 0 0 8px 0;
-            font-size: 16px;
-            line-height: 1.4;
-            word-break: break-word;
-          " title="${file.originalName || file.filename}">${file.originalName || file.filename}</h3>
-          
-          <!-- 文件元信息标签 -->
-          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-            <span style="
-              background: linear-gradient(135deg, #dbeafe, #bfdbfe);
-              color: #1e40af;
-              padding: 4px 8px;
-              border-radius: 6px;
-              font-size: 11px;
-              font-weight: 500;
-              display: flex;
-              align-items: center;
-              gap: 4px;
-            ">
-              <i class="fas fa-clock" style="font-size: 10px;"></i>
-              ${formatDate(file.uploadedAt)}
-            </span>
-            
-            ${file.fileSize ? `
-              <span style="
-                background: linear-gradient(135deg, #d1fae5, #a7f3d0);
-                color: #065f46;
-                padding: 4px 8px;
-                border-radius: 6px;
-                font-size: 11px;
-                font-weight: 500;
-                display: flex;
-                align-items: center;
-                gap: 4px;
-              ">
-                <i class="fas fa-hdd" style="font-size: 10px;"></i>
-                ${formatFileSize(file.fileSize)}
-              </span>
-            ` : ''}
-            
-            ${file.mimeType ? `
-              <span style="
-                background: linear-gradient(135deg, #fef3c7, #fde68a);
-                color: #92400e;
-                padding: 4px 8px;
-                border-radius: 6px;
-                font-size: 11px;
-                font-weight: 500;
-                display: flex;
-                align-items: center;
-                gap: 4px;
-              ">
-                <i class="fas fa-file" style="font-size: 10px;"></i>
-                ${file.mimeType.split('/')[1] || file.mimeType}
-              </span>
-            ` : ''}
-          </div>
+  container.style.display = 'block';
+  container.style.maxWidth = '100%';
+  
+  container.innerHTML = files.map((file, index) => {
+    const displayName = file.friendlyName || file.originalName || file.filename;
+    const hasFriendlyName = !!file.friendlyName;
+    const originalName = file.originalName || file.filename;
+    
+    return `
+    <div class="file-list-item" draggable="true" data-file-id="${file.id}" data-index="${index}"
+         ondragstart="onFileDragStart(event)" ondragover="onFileDragOver(event)" ondrop="onFileDrop(event)" ondragend="onFileDragEnd(event)">
+      <div class="file-drag-handle" title="拖拽排序">
+        <i class="fas fa-grip-vertical"></i>
+      </div>
+      <div class="file-icon-box">${getFileIcon(file.filename)}</div>
+      <div class="file-info-section">
+        <div class="file-display-name" title="${originalName}">${displayName}</div>
+        ${hasFriendlyName ? `<div class="file-original-name" title="${originalName}">${originalName}</div>` : ''}
+        <div class="file-meta-row">
+          ${file.fileSize ? `<span class="file-meta-tag file-meta-size"><i class="fas fa-hdd"></i> ${formatFileSize(file.fileSize)}</span>` : ''}
+          ${file.mimeType ? `<span class="file-meta-tag file-meta-type">${file.mimeType.split('/')[1] || file.mimeType}</span>` : ''}
+          <span class="file-meta-tag file-meta-date"><i class="fas fa-clock"></i> ${formatDate(file.uploadedAt)}</span>
+        </div>
+        ${file.description ? `<div class="file-desc-preview">${file.description.substring(0, 60)}${file.description.length > 60 ? '...' : ''}</div>` : ''}
+      </div>
+      <div class="file-actions-group">
+        <button onclick="downloadFile(${file.id})" class="file-action-btn file-action-download" title="下载"><i class="fas fa-download"></i></button>
+        <button onclick="editFileInfo(${file.id})" class="file-action-btn file-action-edit" title="编辑"><i class="fas fa-edit"></i></button>
+        <button onclick="deleteFile(${file.id})" class="file-action-btn file-action-delete" title="删除"><i class="fas fa-trash"></i></button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// 文件拖拽排序功能
+let draggedFileIndex = null;
+
+function onFileDragStart(e) {
+  draggedFileIndex = parseInt(e.currentTarget.dataset.index);
+  e.currentTarget.style.opacity = '0.4';
+  e.dataTransfer.effectAllowed = 'move';
+}
+
+function onFileDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const target = e.currentTarget;
+  target.style.borderTop = '3px solid #3b82f6';
+}
+
+function onFileDrop(e) {
+  e.preventDefault();
+  const targetIndex = parseInt(e.currentTarget.dataset.index);
+  e.currentTarget.style.borderTop = '';
+  
+  if (draggedFileIndex === null || draggedFileIndex === targetIndex) return;
+  
+  const movedFile = files.splice(draggedFileIndex, 1)[0];
+  files.splice(targetIndex, 0, movedFile);
+  
+  const fileOrders = files.map((f, i) => ({ fileId: f.id, order: i }));
+  
+  fetch(`/travenion/api/plans/${planId}/files/reorder`, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('token')}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ fileOrders })
+  }).then(response => {
+    if (response.ok) {
+      showNotification('文件顺序已更新', 'success');
+    } else {
+      showNotification('排序保存失败', 'error');
+      loadFiles();
+    }
+  }).catch(() => {
+    showNotification('排序保存失败', 'error');
+    loadFiles();
+  });
+  
+  renderFiles();
+}
+
+function onFileDragEnd(e) {
+  e.currentTarget.style.opacity = '1';
+  document.querySelectorAll('.file-list-item').forEach(el => {
+    el.style.borderTop = '';
+  });
+  draggedFileIndex = null;
+}
+
+// 编辑文件信息（友好名称 + 描述）
+function editFileInfo(fileId) {
+  const file = files.find(f => f.id === fileId);
+  if (!file) {
+    showNotification('文件不存在', 'error');
+    return;
+  }
+  
+  const modal = document.createElement('div');
+  modal.className = 'modal show';
+  modal.innerHTML = `
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>编辑文件信息</h3>
+        <button type="button" onclick="this.closest('.modal').remove()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">原始文件名</label>
+          <input type="text" value="${(file.originalName || file.filename).replace(/"/g, '&quot;')}" readonly 
+                 style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; background: #f8f9fa; color: #6b7280; font-size: 13px;">
+        </div>
+        <div class="form-group">
+          <label class="form-label">简短友好名称</label>
+          <input type="text" id="editFileFriendlyName" value="${(file.friendlyName || '').replace(/"/g, '&quot;')}" 
+                 placeholder="输入简短易识别的名称..." 
+                 style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;">
+          <small style="color: #6b7280; font-size: 12px; margin-top: 4px; display: block;">设置简短名称后，文件列表将显示此名称而非原始长文件名</small>
+        </div>
+        <div class="form-group">
+          <label class="form-label">描述</label>
+          <textarea id="editFileDescription" rows="3" placeholder="为文件添加描述..." 
+                    style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; resize: vertical; font-size: 14px;">${file.description || ''}</textarea>
         </div>
       </div>
-      
-      <!-- 文件描述 -->
-      ${file.description ? `
-        <div style="
-          background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
-          border: 1px solid #0ea5e9;
-          border-radius: 12px;
-          padding: 12px;
-          margin-bottom: 16px;
-          position: relative;
-        ">
-          <div style="
-            position: absolute;
-            left: 12px;
-            top: -6px;
-            background: #0ea5e9;
-            color: white;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 10px;
-            font-weight: 600;
-          ">描述</div>
-          <p class="text-scroll" style="
-            color: #0c4a6e;
-            font-size: 13px;
-            line-height: 1.5;
-            margin: 8px 0 0 0;
-          " title="${file.description}">${file.description}</p>
-        </div>
-      ` : ''}
-      
-      <!-- 操作按钮区域 -->
-      <div style="
-        display: flex;
-        justify-content: stretch;
-        gap: 8px;
-        padding-top: 16px;
-        border-top: 1px solid #f1f5f9;
-      ">
-        <button onclick="downloadFile(${file.id})" style="
-          background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-          color: white;
-          border: none;
-          border-radius: 12px;
-          padding: 14px;
-          font-size: 16px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.3s ease;
-          box-shadow: 0 4px 14px 0 rgba(59, 130, 246, 0.39);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex: 1;
-          min-height: 48px;
-        " title="下载文件" onmouseover="
-          this.style.transform='translateY(-2px)';
-          this.style.boxShadow='0 6px 20px 0 rgba(59, 130, 246, 0.5)';
-        " onmouseout="
-          this.style.transform='translateY(0)';
-          this.style.boxShadow='0 4px 14px 0 rgba(59, 130, 246, 0.39)';
-        ">
-          <i class="fas fa-download"></i>
-        </button>
-        
-        <button onclick="editFileDescription(${file.id})" style="
-          background: linear-gradient(135deg, #f59e0b, #d97706);
-          color: white;
-          border: none;
-          border-radius: 12px;
-          padding: 14px;
-          font-size: 16px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.3s ease;
-          box-shadow: 0 4px 14px 0 rgba(245, 158, 11, 0.39);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex: 1;
-          min-height: 48px;
-        " title="编辑描述" onmouseover="
-          this.style.transform='translateY(-2px)';
-          this.style.boxShadow='0 6px 20px 0 rgba(245, 158, 11, 0.5)';
-        " onmouseout="
-          this.style.transform='translateY(0)';
-          this.style.boxShadow='0 4px 14px 0 rgba(245, 158, 11, 0.39)';
-        ">
-          <i class="fas fa-edit"></i>
-        </button>
-        
-        <button onclick="deleteFile(${file.id})" style="
-          background: linear-gradient(135deg, #ef4444, #dc2626);
-          color: white;
-          border: none;
-          border-radius: 12px;
-          padding: 14px;
-          font-size: 16px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.3s ease;
-          box-shadow: 0 4px 14px 0 rgba(239, 68, 68, 0.39);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex: 1;
-          min-height: 48px;
-        " title="删除文件" onmouseover="
-          this.style.transform='translateY(-2px)';
-          this.style.boxShadow='0 6px 20px 0 rgba(239, 68, 68, 0.5)';
-        " onmouseout="
-          this.style.transform='translateY(0)';
-          this.style.boxShadow='0 4px 14px 0 rgba(239, 68, 68, 0.39)';
-        ">
-          <i class="fas fa-trash"></i>
-        </button>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="this.closest('.modal').remove()">取消</button>
+        <button type="button" class="btn btn-primary" id="saveFileInfoBtn">保存</button>
       </div>
     </div>
-  `).join('');
+  `;
   
-  // 应用文字滚动效果
-  setTimeout(() => {
-    addScrollEffectToOverflowText();
-  }, 100);
+  document.body.appendChild(modal);
+  
+  modal.querySelector('#saveFileInfoBtn').addEventListener('click', async function() {
+    const btn = this;
+    const friendlyName = modal.querySelector('#editFileFriendlyName').value.trim();
+    const description = modal.querySelector('#editFileDescription').value.trim();
+    
+    setLoadingState(btn, true);
+    
+    try {
+      const response = await fetch(`/travenion/api/plans/${planId}/files/${fileId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ friendlyName, description })
+      });
+      
+      if (!response.ok) throw new Error('更新失败');
+      
+      const fileIndex = files.findIndex(f => f.id === fileId);
+      if (fileIndex !== -1) {
+        files[fileIndex].friendlyName = friendlyName;
+        files[fileIndex].description = description;
+      }
+      
+      renderFiles();
+      modal.remove();
+      showNotification('文件信息已更新', 'success');
+    } catch (error) {
+      console.error('更新文件信息失败:', error);
+      showNotification('更新失败', 'error');
+    } finally {
+      setLoadingState(btn, false);
+    }
+  });
+  
+  setTimeout(() => modal.querySelector('#editFileFriendlyName').focus(), 100);
 }
 
 // 更新统计信息
@@ -1045,6 +983,108 @@ let directionsRenderer = null;
 let baiduDrivingRoute = null;
 let routePolyline = null;
 let attractionMarkers = []; // 存储景点标记信息，用于点击放大功能
+let routeMode = 'real'; // 'straight' 或 'real'
+let routeProfile = 'driving'; // 'driving', 'cycling', 'walking'
+
+// 获取真实路线坐标
+async function fetchRealRoute(coordinates) {
+  if (!coordinates || coordinates.length < 2) return null;
+  
+  if (mapProvider === 'openstreetmap') {
+    const coordsStr = coordinates.map(c => `${c[1]},${c[0]}`).join(';');
+    const profile = routeProfile === 'cycling' ? 'cycling' : routeProfile === 'walking' ? 'foot' : 'driving';
+    const url = `https://router.project-osrm.org/route/v1/${profile}/${coordsStr}?overview=full&geometries=geojson`;
+    
+    try {
+      const response = await fetch(url, {
+        headers: { 'User-Agent': 'Travenion/1.0' }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.routes && data.routes.length > 0) {
+          return data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+        }
+      }
+    } catch (error) {
+      console.warn('OSRM路线规划失败:', error.message);
+    }
+  } else if (mapProvider === 'baidu' && typeof BMap !== 'undefined') {
+    try {
+      const driving = new BMap.DrivingRoute(map, {
+        onSearchComplete: function(results) {
+          if (driving.getStatus() === BMAP_STATUS_SUCCESS) {
+            const plan = results.getPlan(0);
+            const pts = [];
+            for (let i = 0; i < plan.getNumRoutes(); i++) {
+              const route = plan.getRoute(i);
+              const path = route.getPath();
+              for (let j = 0; j < path.length; j++) {
+                pts.push(new BMap.Point(path[j].lng, path[j].lat));
+              }
+            }
+            return pts;
+          }
+          return null;
+        }
+      });
+    } catch (error) {
+      console.warn('百度地图路线规划失败:', error.message);
+    }
+  }
+  
+  return null;
+}
+
+// 批量获取路线（分段获取避免路线过长）
+async function fetchRealRoutesBatch(allCoordinates) {
+  if (allCoordinates.length < 2) return [];
+  
+  const allRouteSegments = [];
+  
+  for (let i = 0; i < allCoordinates.length - 1; i++) {
+    const segmentCoords = [allCoordinates[i], allCoordinates[i + 1]];
+    
+    if (mapProvider === 'openstreetmap') {
+      const coordsStr = segmentCoords.map(c => `${c[1]},${c[0]}`).join(';');
+      const profile = routeProfile === 'cycling' ? 'cycling' : routeProfile === 'walking' ? 'foot' : 'driving';
+      const url = `https://router.project-osrm.org/route/v1/${profile}/${coordsStr}?overview=full&geometries=geojson`;
+      
+      try {
+        const response = await fetch(url, {
+          headers: { 'User-Agent': 'Travenion/1.0' }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.routes && data.routes.length > 0) {
+            const routeCoords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+            allRouteSegments.push({
+              from: i,
+              to: i + 1,
+              coordinates: routeCoords,
+              distance: data.routes[0].distance,
+              duration: data.routes[0].duration
+            });
+            continue;
+          }
+        }
+      } catch (error) {
+        console.warn(`OSRM路线规划失败 (段${i}-${i+1}):`, error.message);
+      }
+    }
+    
+    allRouteSegments.push({
+      from: i,
+      to: i + 1,
+      coordinates: segmentCoords,
+      distance: null,
+      duration: null
+    });
+  }
+  
+  return allRouteSegments;
+}
 
 // 添加地图标记（仅景点）
 async function addMapMarkers() {
@@ -1125,34 +1165,46 @@ async function addMapMarkers() {
             try {
               console.log(`正在地理编码: ${attraction.name}`);
               
-              // 增加延迟以避免API限制
               if (i > 0) {
                 await new Promise(resolve => setTimeout(resolve, 800));
               }
               
-              const searchQuery = `${attraction.address}, ${attraction.dayCity}`;
-              const response = await fetch(
-                `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&addressdetails=1`,
-                {
-                  headers: {
-                    'User-Agent': 'Travenion/1.0 (travel planning application)'
-                  },
-                  timeout: 10000
-                }
-              );
+              let searchQuery = '';
+              let geocodeSuccess = false;
               
-              if (response.ok) {
-                const data = await response.json();
-                if (data && data.length > 0 && data[0].lat && data[0].lon) {
-                  lat = parseFloat(data[0].lat);
-                  lng = parseFloat(data[0].lon);
-                  console.log(`地理编码成功: ${attraction.name} -> ${lat}, ${lng}`);
-                } else {
-                  console.warn(`地理编码无结果: ${attraction.name}`);
-                  geocodingFailed = true;
+              const queries = [
+                `${attraction.name}, ${attraction.dayCity}`,
+                attraction.name,
+                `${attraction.address}, ${attraction.dayCity}`,
+                attraction.address
+              ].filter((q, idx, arr) => q && arr.indexOf(q) === idx);
+              
+              for (const query of queries) {
+                if (geocodeSuccess) break;
+                searchQuery = query;
+                
+                const response = await fetch(
+                  `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&addressdetails=1`,
+                  {
+                    headers: {
+                      'User-Agent': 'Travenion/1.0 (travel planning application)'
+                    }
+                  }
+                );
+                
+                if (response.ok) {
+                  const data = await response.json();
+                  if (data && data.length > 0 && data[0].lat && data[0].lon) {
+                    lat = parseFloat(data[0].lat);
+                    lng = parseFloat(data[0].lon);
+                    geocodeSuccess = true;
+                    console.log(`地理编码成功: ${attraction.name} -> ${lat}, ${lng} (query: ${searchQuery})`);
+                  }
                 }
-              } else {
-                console.warn(`地理编码请求失败: ${attraction.name}, 状态: ${response.status}`);
+              }
+              
+              if (!geocodeSuccess) {
+                console.warn(`地理编码无结果: ${attraction.name}`);
                 geocodingFailed = true;
               }
             } catch (error) {
@@ -1259,16 +1311,49 @@ async function addMapMarkers() {
     
     // 创建路线连线
     if (pathCoordinates.length > 1) {
-      const routeLine = L.polyline(pathCoordinates, {
-        color: '#007bff',
-        weight: 4,
-        opacity: 0.8,
-        smoothFactor: 1,
-        dashArray: null
-      });
-      
-      routeLine.addTo(map);
-      polylines.push(routeLine);
+      if (routeMode === 'real') {
+        showNotification('正在规划真实路线...', 'info');
+        const segments = await fetchRealRoutesBatch(pathCoordinates);
+        
+        let totalDistance = 0;
+        let totalDuration = 0;
+        let realSegmentsCount = 0;
+        
+        for (const segment of segments) {
+          const segmentColor = '#007bff';
+          const routeLine = L.polyline(segment.coordinates, {
+            color: segmentColor,
+            weight: 4,
+            opacity: 0.8,
+            smoothFactor: 1
+          });
+          routeLine.addTo(map);
+          polylines.push(routeLine);
+          
+          if (segment.distance) totalDistance += segment.distance;
+          if (segment.duration) totalDuration += segment.duration;
+          if (segment.distance) realSegmentsCount++;
+        }
+        
+        if (realSegmentsCount > 0) {
+          const distKm = (totalDistance / 1000).toFixed(1);
+          const durHours = Math.floor(totalDuration / 3600);
+          const durMins = Math.round((totalDuration % 3600) / 60);
+          showNotification(`路线规划完成: 约${distKm}公里，预计${durHours > 0 ? durHours + '小时' : ''}${durMins}分钟`, 'success');
+        } else {
+          showNotification('部分路线使用直线连接（路线服务暂不可用）', 'warning');
+        }
+      } else {
+        const routeLine = L.polyline(pathCoordinates, {
+          color: '#007bff',
+          weight: 4,
+          opacity: 0.8,
+          smoothFactor: 1,
+          dashArray: '8, 8'
+        });
+        routeLine.addTo(map);
+        polylines.push(routeLine);
+      }
       
       console.log(`创建路线连线，包含 ${pathCoordinates.length} 个点`);
     }
@@ -1391,13 +1476,80 @@ async function addMapMarkers() {
 
     // 创建全局连线
     if (globalPathPoints.length > 1) {
-      const polyline = new BMap.Polyline(globalPathPoints, {
-        strokeColor: '#f59e0b',
-        strokeWeight: 3,
-        strokeOpacity: 0.8
-      });
-      map.addOverlay(polyline);
-      polylines.push(polyline);
+      if (routeMode === 'real') {
+        showNotification('正在规划真实路线...', 'info');
+        
+        let totalDistance = 0;
+        let totalDuration = 0;
+        let realSegmentsCount = 0;
+        
+        for (let i = 0; i < globalPathPoints.length - 1; i++) {
+          const origin = globalPathPoints[i];
+          const destination = globalPathPoints[i + 1];
+          
+          try {
+            const drivingPolicy = routeProfile === 'walking' ? BMAP_DRIVING_POLICY_LEAST_DISTANCE : BMAP_DRIVING_POLICY_LEAST_TIME;
+            const driving = new BMap.DrivingRoute(map, {
+              policy: drivingPolicy,
+              onSearchComplete: function(results) {
+                if (driving.getStatus() === BMAP_STATUS_SUCCESS) {
+                  const plan = results.getPlan(0);
+                  if (plan) {
+                    const pts = [];
+                    for (let r = 0; r < plan.getNumRoutes(); r++) {
+                      const route = plan.getRoute(r);
+                      const path = route.getPath();
+                      for (let p = 0; p < path.length; p++) {
+                        pts.push(path[p]);
+                      }
+                    }
+                    if (pts.length > 0) {
+                      const routeLine = new BMap.Polyline(pts, {
+                        strokeColor: '#f59e0b',
+                        strokeWeight: 4,
+                        strokeOpacity: 0.8
+                      });
+                      map.addOverlay(routeLine);
+                      polylines.push(routeLine);
+                      realSegmentsCount++;
+                    }
+                  }
+                }
+              }
+            });
+            driving.search(origin, destination);
+          } catch (error) {
+            console.warn(`百度地图路线规划失败 (段${i}):`, error.message);
+          }
+          
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
+        
+        setTimeout(() => {
+          if (realSegmentsCount > 0) {
+            showNotification('路线规划完成', 'success');
+          } else {
+            const fallbackLine = new BMap.Polyline(globalPathPoints, {
+              strokeColor: '#f59e0b',
+              strokeWeight: 3,
+              strokeOpacity: 0.8,
+              strokeStyle: 'dashed'
+            });
+            map.addOverlay(fallbackLine);
+            polylines.push(fallbackLine);
+            showNotification('路线服务暂不可用，使用直线连接', 'warning');
+          }
+        }, 1000);
+      } else {
+        const polyline = new BMap.Polyline(globalPathPoints, {
+          strokeColor: '#f59e0b',
+          strokeWeight: 3,
+          strokeOpacity: 0.8,
+          strokeStyle: 'dashed'
+        });
+        map.addOverlay(polyline);
+        polylines.push(polyline);
+      }
     }
 
     if (viewportPoints.length > 0) {
@@ -1932,17 +2084,21 @@ function initMapButtons() {
 
   if (!osmBtn || !baiduBtn) return;
 
-  // 清除所有状态
-  osmBtn.classList.remove('btn-outline-primary', 'btn-primary');
-  baiduBtn.classList.remove('btn-outline-primary', 'btn-primary');
+  osmBtn.classList.remove('btn-outline', 'btn-primary');
+  baiduBtn.classList.remove('btn-outline', 'btn-primary');
 
-  // 根据当前地图提供商设置按钮状态
   if (mapProvider === 'openstreetmap') {
     osmBtn.classList.add('btn-primary');
-    baiduBtn.classList.add('btn-outline-primary');
+    baiduBtn.classList.add('btn-outline');
   } else {
     baiduBtn.classList.add('btn-primary');
-    osmBtn.classList.add('btn-outline-primary');
+    osmBtn.classList.add('btn-outline');
+  }
+  
+  const routeModeBtn = document.getElementById('routeModeBtn');
+  if (routeModeBtn) {
+    routeModeBtn.classList.remove('btn-outline', 'btn-primary');
+    routeModeBtn.classList.add(routeMode === 'real' ? 'btn-primary' : 'btn-outline');
   }
 }
 
@@ -2000,6 +2156,44 @@ function switchMapProvider(provider) {
       }
     }
   });
+}
+
+// 切换路线模式
+function toggleRouteMode() {
+  routeMode = routeMode === 'real' ? 'straight' : 'real';
+  const modeText = document.getElementById('routeModeText');
+  const modeBtn = document.getElementById('routeModeBtn');
+  if (routeMode === 'real') {
+    modeText.textContent = '真实路线';
+    modeBtn.classList.remove('btn-outline');
+    modeBtn.classList.add('btn-primary');
+    modeBtn.style.background = '';
+  } else {
+    modeText.textContent = '直线连接';
+    modeBtn.classList.remove('btn-primary');
+    modeBtn.classList.add('btn-outline');
+  }
+  showNotification(`路线模式: ${routeMode === 'real' ? '真实路线' : '直线连接'}`, 'info');
+  loadMap();
+}
+
+// 切换出行方式
+function toggleRouteProfile() {
+  const profiles = ['driving', 'cycling', 'walking'];
+  const labels = ['驾车', '骑行', '步行'];
+  const icons = ['fa-car', 'fa-bicycle', 'fa-walking'];
+  const currentIndex = profiles.indexOf(routeProfile);
+  const nextIndex = (currentIndex + 1) % profiles.length;
+  
+  routeProfile = profiles[nextIndex];
+  document.getElementById('routeProfileText').textContent = labels[nextIndex];
+  const iconEl = document.getElementById('routeProfileIcon');
+  iconEl.className = 'fas ' + icons[nextIndex];
+  
+  showNotification(`出行方式: ${labels[nextIndex]}`, 'info');
+  if (routeMode === 'real') {
+    loadMap();
+  }
 }
 
 // 清除路线
@@ -2553,15 +2747,26 @@ let isEditingAttraction = false;
 // 景点剪贴板变量
 let copiedAttraction = null;
 
+// 地理编码搜索相关变量
+let geocodeTimer = null;
+let selectedGeocodeResult = null;
+
 // 添加景点项
 function addAttractionItem() {
   currentEditingAttraction = null;
   isEditingAttraction = false;
+  selectedGeocodeResult = null;
   document.getElementById('attractionModalTitle').textContent = '添加景点';
   document.getElementById('attractionSaveText').textContent = '保存';
   document.getElementById('attractionName').value = '';
   document.getElementById('attractionAddress').value = '';
   document.getElementById('attractionDescription').value = '';
+  document.getElementById('attractionLatitude').value = '';
+  document.getElementById('attractionLongitude').value = '';
+  const searchInput = document.getElementById('attractionSearchInput');
+  if (searchInput) searchInput.value = '';
+  document.getElementById('geocodeResults').innerHTML = '';
+  document.getElementById('geocodeResults').style.display = 'none';
   openModal('attractionModal');
 }
 
@@ -2570,6 +2775,101 @@ function closeAttractionModal() {
   closeModal('attractionModal');
   currentEditingAttraction = null;
   isEditingAttraction = false;
+  selectedGeocodeResult = null;
+  document.getElementById('geocodeResults').innerHTML = '';
+  document.getElementById('geocodeResults').style.display = 'none';
+}
+
+// 执行地理编码搜索
+async function searchGeocode(query) {
+  const resultsContainer = document.getElementById('geocodeResults');
+  if (!query || query.trim().length === 0) {
+    resultsContainer.style.display = 'none';
+    resultsContainer.innerHTML = '';
+    return;
+  }
+  
+  resultsContainer.innerHTML = '<div style="padding: 10px; text-align: center; color: #6b7280;"><i class="fas fa-spinner fa-spin"></i> 搜索中...</div>';
+  resultsContainer.style.display = 'block';
+  
+  try {
+    const response = await fetch(`/travenion/api/attractions/geocode?q=${encodeURIComponent(query)}`, {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+    });
+    
+    if (!response.ok) {
+      throw new Error('搜索失败');
+    }
+    
+    const results = await response.json();
+    
+    if (results.length === 0) {
+      resultsContainer.innerHTML = '<div style="padding: 10px; text-align: center; color: #9ca3af;">未找到匹配的地点，请尝试更详细的地址或直接输入经纬度</div>';
+      return;
+    }
+    
+    resultsContainer.innerHTML = results.map((result, index) => `
+      <div onclick="selectGeocodeResult(${index})" class="geocode-result-item" data-index="${index}" 
+           style="padding: 10px 12px; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.15s;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="color: #3b82f6; font-size: 14px;"><i class="fas fa-map-marker-alt"></i></span>
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-weight: 600; color: #1f2937; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${result.name}</div>
+            <div style="color: #6b7280; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${result.display_name}</div>
+          </div>
+          <span style="color: #9ca3af; font-size: 10px; flex-shrink: 0;">${result.source === 'nominatim' ? 'OSM' : result.source === 'baidu' ? '百度' : '坐标'}</span>
+        </div>
+      </div>
+    `).join('');
+    
+    resultsContainer._geocodeResults = results;
+    
+    resultsContainer.querySelectorAll('.geocode-result-item').forEach(item => {
+      item.addEventListener('mouseover', () => {
+        item.style.background = '#f0f9ff';
+      });
+      item.addEventListener('mouseout', () => {
+        item.style.background = '';
+      });
+    });
+    
+  } catch (error) {
+    console.error('地理编码搜索失败:', error);
+    resultsContainer.innerHTML = '<div style="padding: 10px; text-align: center; color: #ef4444;">搜索失败，请重试</div>';
+  }
+}
+
+// 选择地理编码结果
+function selectGeocodeResult(index) {
+  const resultsContainer = document.getElementById('geocodeResults');
+  const results = resultsContainer._geocodeResults;
+  if (!results || !results[index]) return;
+  
+  const result = results[index];
+  selectedGeocodeResult = result;
+  
+  document.getElementById('attractionAddress').value = result.display_name || result.name;
+  document.getElementById('attractionLatitude').value = result.lat;
+  document.getElementById('attractionLongitude').value = result.lng;
+  
+  resultsContainer.querySelectorAll('.geocode-result-item').forEach((item, i) => {
+    item.style.background = i === index ? '#dbeafe' : '';
+    item.style.borderLeft = i === index ? '3px solid #3b82f6' : '';
+  });
+  
+  showNotification(`已选择: ${result.name}`, 'success');
+}
+
+// 触发地理编码搜索（带防抖）
+function triggerGeocodeSearch(inputValue) {
+  if (geocodeTimer) clearTimeout(geocodeTimer);
+  selectedGeocodeResult = null;
+  document.getElementById('attractionLatitude').value = '';
+  document.getElementById('attractionLongitude').value = '';
+  
+  geocodeTimer = setTimeout(() => {
+    searchGeocode(inputValue);
+  }, 500);
 }
 
 // 保存景点
@@ -2582,23 +2882,25 @@ function saveAttraction() {
   
   const address = document.getElementById('attractionAddress').value.trim();
   const description = document.getElementById('attractionDescription').value.trim();
+  const latitude = document.getElementById('attractionLatitude').value ? parseFloat(document.getElementById('attractionLatitude').value) : null;
+  const longitude = document.getElementById('attractionLongitude').value ? parseFloat(document.getElementById('attractionLongitude').value) : null;
   
   if (isEditingAttraction && currentEditingAttraction !== null) {
-    // 编辑现有景点
     currentDayAttractions[currentEditingAttraction] = {
       ...currentDayAttractions[currentEditingAttraction],
       name: name,
       address: address,
-      description: description
+      description: description,
+      latitude: latitude,
+      longitude: longitude
     };
   } else {
-    // 添加新景点
     const newAttraction = {
       name: name,
       description: description,
       address: address,
-      latitude: null,
-      longitude: null,
+      latitude: latitude,
+      longitude: longitude,
       visitOrder: currentDayAttractions.length + 1
     };
     currentDayAttractions.push(newAttraction);
@@ -2615,11 +2917,18 @@ function editAttractionItem(index) {
   
   currentEditingAttraction = index;
   isEditingAttraction = true;
+  selectedGeocodeResult = null;
   document.getElementById('attractionModalTitle').textContent = '编辑景点';
   document.getElementById('attractionSaveText').textContent = '更新';
   document.getElementById('attractionName').value = attraction.name || '';
   document.getElementById('attractionAddress').value = attraction.address || '';
   document.getElementById('attractionDescription').value = attraction.description || '';
+  document.getElementById('attractionLatitude').value = attraction.latitude || '';
+  document.getElementById('attractionLongitude').value = attraction.longitude || '';
+  const searchInput = document.getElementById('attractionSearchInput');
+  if (searchInput) searchInput.value = '';
+  document.getElementById('geocodeResults').innerHTML = '';
+  document.getElementById('geocodeResults').style.display = 'none';
   openModal('attractionModal');
 }
 
@@ -3230,13 +3539,22 @@ async function saveAttractions(dayId) {
     
     // 添加新的景点
     for (const attraction of currentDayAttractions) {
+      const body = {
+        name: attraction.name,
+        address: attraction.address,
+        description: attraction.description,
+        estimatedDuration: attraction.estimatedDuration,
+        notes: attraction.notes
+      };
+      if (attraction.latitude) body.latitude = attraction.latitude;
+      if (attraction.longitude) body.longitude = attraction.longitude;
       await fetch(`/travenion/api/attractions/day/${dayId}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(attraction)
+        body: JSON.stringify(body)
       });
     }
     
