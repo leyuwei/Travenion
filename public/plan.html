@@ -98,6 +98,30 @@
       </div>
     </div>
 
+    <!-- 机酒计划 -->
+    <div class="card fade-in">
+      <div class="card-header">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+          <h2 class="card-title">🏨✈️ 机酒计划</h2>
+          <div class="booking-actions" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <button id="exportBookingsPdfBtn" class="btn btn-outline" title="导出机酒计划为PDF">
+              <i class="fas fa-file-pdf"></i>
+              <span class="btn-text">导出PDF</span>
+            </button>
+            <button id="addBookingPlanBtn" class="btn btn-primary">+ 新建候选计划</button>
+          </div>
+        </div>
+      </div>
+      <div id="bookingPlansContainer">
+        <div id="emptyBookingPlans" style="display: none; text-align: center; padding: 40px;">
+          <div style="font-size: 3rem; margin-bottom: 15px;">🏨</div>
+          <h3 style="color: #6b7280; margin-bottom: 10px;">还没有机酒计划</h3>
+          <p style="color: #9ca3af;">新建候选计划，对比不同方案的酒店和机票价格</p>
+        </div>
+        <div id="bookingPlansList"></div>
+      </div>
+    </div>
+
     <!-- 行程安排 -->
     <div class="card fade-in">
       <div class="card-header">
@@ -377,6 +401,169 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeModal('exportModal')">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 机酒计划 - 候选计划模态框 -->
+  <div id="bookingPlanModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="bookingPlanModalTitle" style="margin: 0;">新建候选计划</h2>
+        <button class="close" onclick="closeBookingPlanModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="bookingPlanForm">
+          <input type="hidden" id="editBookingPlanId" value="">
+          <div class="form-group">
+            <label class="form-label">计划名称 *</label>
+            <input type="text" class="form-control" id="bookingPlanName" placeholder="例如：方案A / 节省型方案" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">备注</label>
+            <textarea class="form-control" id="bookingPlanNotes" rows="3" placeholder="可选：该方案的亮点或注意事项"></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeBookingPlanModal()">取消</button>
+        <button type="button" class="btn btn-primary" onclick="saveBookingPlan()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 机酒计划 - 酒店记录模态框 -->
+  <div id="bookingHotelModal" class="modal">
+    <div class="modal-content modal-lg">
+      <div class="modal-header">
+        <h2 id="bookingHotelModalTitle" style="margin: 0;">添加酒店</h2>
+        <button class="close" onclick="closeBookingHotelModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="bookingHotelForm">
+          <input type="hidden" id="editHotelId" value="">
+          <input type="hidden" id="hotelPlanId" value="">
+          <div class="form-group">
+            <label class="form-label">酒店名称 *</label>
+            <input type="text" class="form-control" id="hotelNameInput" placeholder="例如：东京新大谷酒店" required>
+          </div>
+          <div class="form-row" style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <div class="form-group" style="flex: 1; min-width: 160px;">
+              <label class="form-label">住宿城市</label>
+              <input type="text" class="form-control" id="hotelCityInput" placeholder="例如：东京">
+            </div>
+            <div class="form-group" style="flex: 1; min-width: 160px;">
+              <label class="form-label">地点</label>
+              <input type="text" class="form-control" id="hotelLocationInput" placeholder="例如：千代田区">
+            </div>
+          </div>
+          <div class="form-row" style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <div class="form-group" style="flex: 1; min-width: 160px;">
+              <label class="form-label">预定平台</label>
+              <select class="form-control form-select" id="hotelPlatformInput">
+                <option value="">请选择</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex: 1; min-width: 100px;">
+              <label class="form-label">间夜数</label>
+              <input type="number" class="form-control" id="hotelNightsInput" min="1" value="1">
+            </div>
+            <div class="form-group" style="flex: 1; min-width: 120px;">
+              <label class="form-label">每晚价格(¥)</label>
+              <input type="number" class="form-control" id="hotelPriceInput" min="0" step="0.01" value="0">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">订单链接</label>
+            <input type="url" class="form-control" id="hotelOrderLinkInput" placeholder="可选：订单网址">
+          </div>
+          <div class="form-group">
+            <label class="form-label">订单截图</label>
+            <input type="file" class="form-control" id="hotelOrderImageInput" accept="image/*">
+            <div id="hotelImagePreview" style="margin-top: 10px;"></div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeBookingHotelModal()">取消</button>
+        <button type="button" class="btn btn-primary" onclick="saveBookingHotel()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 机酒计划 - 机票记录模态框 -->
+  <div id="bookingFlightModal" class="modal">
+    <div class="modal-content modal-lg">
+      <div class="modal-header">
+        <h2 id="bookingFlightModalTitle" style="margin: 0;">添加机票</h2>
+        <button class="close" onclick="closeBookingFlightModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="bookingFlightForm">
+          <input type="hidden" id="editFlightId" value="">
+          <input type="hidden" id="flightPlanId" value="">
+          <div class="form-row" style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <div class="form-group" style="flex: 1; min-width: 160px;">
+              <label class="form-label">航班号 *</label>
+              <input type="text" class="form-control" id="flightNumberInput" placeholder="例如：MU523" required>
+            </div>
+            <div class="form-group" style="flex: 1; min-width: 120px;">
+              <label class="form-label">日期</label>
+              <input type="date" class="form-control" id="flightDateInput">
+            </div>
+          </div>
+          <div class="form-row" style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <div class="form-group" style="flex: 1; min-width: 160px;">
+              <label class="form-label">出发地机场 *</label>
+              <input type="text" class="form-control" id="flightDepartureInput" placeholder="例如：浦东国际机场 PVG">
+            </div>
+            <div class="form-group" style="flex: 1; min-width: 160px;">
+              <label class="form-label">目的地机场 *</label>
+              <input type="text" class="form-control" id="flightDestinationInput" placeholder="例如：成田机场 NRT">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">
+              <input type="checkbox" id="flightIsTransitInput" onchange="toggleTransitFields()" style="margin-right: 6px;">
+              需要中转
+            </label>
+          </div>
+          <div class="form-row" id="transitFields" style="display: none; gap: 12px; flex-wrap: wrap;">
+            <div class="form-group" style="flex: 1; min-width: 160px;">
+              <label class="form-label">中转城市</label>
+              <input type="text" class="form-control" id="flightTransitCityInput" placeholder="例如：首尔">
+            </div>
+            <div class="form-group" style="flex: 1; min-width: 160px;">
+              <label class="form-label">中转时长</label>
+              <input type="text" class="form-control" id="flightTransitDurationInput" placeholder="例如：3小时">
+            </div>
+          </div>
+          <div class="form-row" style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <div class="form-group" style="flex: 1; min-width: 160px;">
+              <label class="form-label">预定平台</label>
+              <select class="form-control form-select" id="flightPlatformInput">
+                <option value="">请选择</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex: 1; min-width: 120px;">
+              <label class="form-label">价格(¥)</label>
+              <input type="number" class="form-control" id="flightPriceInput" min="0" step="0.01" value="0">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">订单链接</label>
+            <input type="url" class="form-control" id="flightOrderLinkInput" placeholder="可选：订单网址">
+          </div>
+          <div class="form-group">
+            <label class="form-label">订单截图</label>
+            <input type="file" class="form-control" id="flightOrderImageInput" accept="image/*">
+            <div id="flightImagePreview" style="margin-top: 10px;"></div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeBookingFlightModal()">取消</button>
+        <button type="button" class="btn btn-primary" onclick="saveBookingFlight()">保存</button>
       </div>
     </div>
   </div>

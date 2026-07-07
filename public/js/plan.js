@@ -468,6 +468,7 @@ async function loadPlan() {
     
     await loadDays();
     await loadFiles();
+    await loadBookingPlans();
     await loadMap();
     
     // 应用文字滚动效果
@@ -2356,7 +2357,19 @@ document.addEventListener('DOMContentLoaded', () => {
       printItinerary();
     });
   }
-  
+
+  // 机酒计划按钮
+  const addBookingPlanBtn = document.getElementById('addBookingPlanBtn');
+  if (addBookingPlanBtn) {
+    addBookingPlanBtn.addEventListener('click', () => openBookingPlanModal());
+  }
+  const exportBookingsPdfBtn = document.getElementById('exportBookingsPdfBtn');
+  if (exportBookingsPdfBtn) {
+    exportBookingsPdfBtn.addEventListener('click', () => exportBookingsToPDF());
+  }
+  // 初始化机酒计划的下拉选项
+  initBookingPlatformOptions();
+
   // 分享选项切换
   const enableSharingCheckbox = document.getElementById('enableSharing');
   if (enableSharingCheckbox) {
@@ -4550,4 +4563,796 @@ function doLinesIntersectStrict(line1Start, line1End, line2Start, line2End) {
   }
   
   return false;
+}
+
+// ==================== 机酒计划功能 ====================
+
+const BOOKING_PLATFORMS = ['携程', '美团', '去哪儿', '同程', '旅行社', '官方APP', 'Trip', 'Booking', 'Airbnb', 'Agoda', 'Klook', 'Google'];
+let bookingPlans = [];
+// 待上传的图片状态：{ file: File|null, removed: boolean }
+let pendingHotelImage = { file: null, removed: false };
+let pendingFlightImage = { file: null, removed: false };
+
+function initBookingPlatformOptions() {
+  const hotelSelect = document.getElementById('hotelPlatformInput');
+  const flightSelect = document.getElementById('flightPlatformInput');
+  [hotelSelect, flightSelect].forEach(select => {
+    if (!select) return;
+    // 保留首个占位项
+    const placeholder = select.querySelector('option');
+    select.innerHTML = '';
+    if (placeholder) select.appendChild(placeholder);
+    BOOKING_PLATFORMS.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p;
+      opt.textContent = p;
+      select.appendChild(opt);
+    });
+  });
+}
+
+function bookingApi(path, method = 'GET', body = null, isForm = false) {
+  const opts = {
+    method,
+    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+  };
+  if (body) {
+    if (isForm) {
+      opts.body = body; // FormData
+    } else {
+      opts.headers['Content-Type'] = 'application/json';
+      opts.body = JSON.stringify(body);
+    }
+  }
+  return fetch(`/travenion/api/bookings${path}`, opts);
+}
+
+function formatMoney(num) {
+  const n = Number(num) || 0;
+  return '¥' + n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function hotelSubtotal(hotel) {
+  return (Number(hotel.nights) || 0) * (Number(hotel.price) || 0);
+}
+
+function bookingPlanTotal(bp) {
+  const hotelSum = (bp.hotels || []).reduce((s, h) => s + hotelSubtotal(h), 0);
+  const flightSum = (bp.flights || []).reduce((s, f) => s + (Number(f.price) || 0), 0);
+  return hotelSum + flightSum;
+}
+
+// 加载机酒计划
+async function loadBookingPlans() {
+  try {
+    const res = await bookingApi(`/plan/${planId}`);
+    if (!res.ok) throw new Error('加载机酒计划失败');
+    bookingPlans = await res.json();
+    renderBookingPlans();
+  } catch (e) {
+    console.error('加载机酒计划失败:', e);
+    showNotification('加载机酒计划失败', 'error');
+  }
+}
+
+function renderBookingPlans() {
+  const container = document.getElementById('bookingPlansList');
+  const empty = document.getElementById('emptyBookingPlans');
+  if (!container) return;
+
+  if (!bookingPlans || bookingPlans.length === 0) {
+    container.innerHTML = '';
+    if (empty) empty.style.display = 'block';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+
+  container.innerHTML = bookingPlans.map((bp, idx) => {
+    const total = bookingPlanTotal(bp);
+    return `
+    <div class="booking-plan-card" style="background: white; border-radius: 14px; padding: 20px; margin-bottom: 18px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); border: 1px solid #eef2f7;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; margin-bottom: 14px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: 700;">${idx + 1}</div>
+          <div>
+            <h3 style="margin: 0; color: #1f2937;">${escapeHtml(bp.name)}</h3>
+            ${bp.notes ? `<p style="margin: 2px 0 0 0; color: #6b7280; font-size: 13px;">${escapeHtml(bp.notes)}</p>` : ''}
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+          <div style="background: #ecfdf5; color: #047857; padding: 8px 14px; border-radius: 10px; font-weight: 700; font-size: 15px;">总计 ${formatMoney(total)}</div>
+          <button class="btn btn-outline" onclick="openBookingPlanModal(${bp.id})" style="padding: 6px 12px; font-size: 13px;">编辑</button>
+          <button class="btn btn-danger" onclick="deleteBookingPlan(${bp.id})" style="padding: 6px 12px; font-size: 13px;">删除</button>
+        </div>
+      </div>
+
+      ${renderHotelsSection(bp)}
+      ${renderFlightsSection(bp)}
+    </div>`;
+  }).join('');
+
+  // 异步加载所有订单截图缩略图
+  loadAllBookingThumbnails();
+}
+
+function renderHotelsSection(bp) {
+  const hotels = bp.hotels || [];
+  const hotelSum = hotels.reduce((s, h) => s + hotelSubtotal(h), 0);
+  let html = `
+    <div style="margin-top: 10px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <h4 style="margin: 0; color: #374151; font-size: 15px;">🏨 酒店 ${hotels.length ? `<span style="color:#6b7280; font-weight:400; font-size:13px;">小计 ${formatMoney(hotelSum)}</span>` : ''}</h4>
+        <button class="btn btn-primary" onclick="openBookingHotelModal(${bp.id})" style="padding: 5px 12px; font-size: 13px;">+ 添加酒店</button>
+      </div>`;
+  if (hotels.length === 0) {
+    html += `<div style="padding: 14px; background: #f8fafc; border-radius: 8px; text-align: center; color: #9ca3af; font-size: 13px;">暂无酒店记录</div>`;
+  } else {
+    html += `
+      <div style="overflow-x: auto;">
+      <table class="booking-table">
+        <thead>
+          <tr>
+            <th>城市</th><th>酒店名称</th><th>地点</th><th>平台</th><th>间夜</th><th>每晚</th><th>小计</th><th>订单</th><th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${hotels.map(h => `
+            <tr>
+              <td>${escapeHtml(h.city || '')}</td>
+              <td><span style="font-weight:600;">${escapeHtml(h.hotelName || '')}</span></td>
+              <td>${escapeHtml(h.location || '')}</td>
+              <td>${h.platform ? `<span class="booking-tag">${escapeHtml(h.platform)}</span>` : ''}</td>
+              <td>${h.nights || 0}</td>
+              <td>${formatMoney(h.price)}</td>
+              <td style="font-weight:600; color:#059669;">${formatMoney(hotelSubtotal(h))}</td>
+              <td>${renderOrderCell(planId, bp.id, 'hotels', h.id, h.orderImage, h.orderLink)}</td>
+              <td>
+                <button class="btn btn-outline" onclick="openBookingHotelModal(${bp.id}, ${h.id})" style="padding: 3px 8px; font-size: 12px;">编辑</button>
+                <button class="btn btn-danger" onclick="deleteBookingHotel(${bp.id}, ${h.id})" style="padding: 3px 8px; font-size: 12px;">删除</button>
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+      </div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+function renderFlightsSection(bp) {
+  const flights = bp.flights || [];
+  const flightSum = flights.reduce((s, f) => s + (Number(f.price) || 0), 0);
+  let html = `
+    <div style="margin-top: 16px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <h4 style="margin: 0; color: #374151; font-size: 15px;">✈️ 机票 ${flights.length ? `<span style="color:#6b7280; font-weight:400; font-size:13px;">小计 ${formatMoney(flightSum)}</span>` : ''}</h4>
+        <button class="btn btn-primary" onclick="openBookingFlightModal(${bp.id})" style="padding: 5px 12px; font-size: 13px;">+ 添加机票</button>
+      </div>`;
+  if (flights.length === 0) {
+    html += `<div style="padding: 14px; background: #f8fafc; border-radius: 8px; text-align: center; color: #9ca3af; font-size: 13px;">暂无机票记录</div>`;
+  } else {
+    html += `
+      <div style="overflow-x: auto;">
+      <table class="booking-table">
+        <thead>
+          <tr>
+            <th>航班号</th><th>航线</th><th>中转</th><th>平台</th><th>日期</th><th>价格</th><th>订单</th><th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${flights.map(f => `
+            <tr>
+              <td><span style="font-weight:600;">${escapeHtml(f.flightNumber || '')}</span></td>
+              <td>${escapeHtml(f.departure || '')} <span style="color:#9ca3af;">→</span> ${escapeHtml(f.destination || '')}</td>
+              <td>${f.isTransit ? `<span class="booking-tag" style="background:#fef3c7;color:#b45309;">${escapeHtml(f.transitCity || '中转')}${f.transitDuration ? ' / ' + escapeHtml(f.transitDuration) : ''}</span>` : '<span style="color:#9ca3af;">直飞</span>'}</td>
+              <td>${f.platform ? `<span class="booking-tag">${escapeHtml(f.platform)}</span>` : ''}</td>
+              <td>${f.date ? formatDate(f.date) : ''}</td>
+              <td style="font-weight:600; color:#059669;">${formatMoney(f.price)}</td>
+              <td>${renderOrderCell(planId, bp.id, 'flights', f.id, f.orderImage, f.orderLink)}</td>
+              <td>
+                <button class="btn btn-outline" onclick="openBookingFlightModal(${bp.id}, ${f.id})" style="padding: 3px 8px; font-size: 12px;">编辑</button>
+                <button class="btn btn-danger" onclick="deleteBookingFlight(${bp.id}, ${f.id})" style="padding: 3px 8px; font-size: 12px;">删除</button>
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+      </div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+// 渲染订单单元格（截图缩略图 + 链接）
+function renderOrderCell(pId, bpId, type, recordId, orderImage, orderLink) {
+  let cell = '<div style="display:flex; flex-direction:column; gap:4px; align-items:flex-start;">';
+  if (orderImage) {
+    cell += `<div class="booking-thumb" data-image-plan="${pId}" data-image-bp="${bpId}" data-image-type="${type}" data-image-id="${recordId}" title="点击查看订单截图" style="width:42px;height:42px;border-radius:6px;background:#e5e7eb;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;">🖼️</div>`;
+  } else {
+    cell += `<span style="color:#d1d5db;font-size:12px;">无截图</span>`;
+  }
+  if (orderLink) {
+    cell += `<a href="${escapeHtml(orderLink)}" target="_blank" rel="noopener" style="font-size:12px;color:#2563eb;">订单链接 <i class="fas fa-external-link-alt"></i></a>`;
+  }
+  cell += '</div>';
+  return cell;
+}
+
+// 异步加载缩略图
+async function loadAllBookingThumbnails() {
+  const thumbs = document.querySelectorAll('.booking-thumb');
+  thumbs.forEach(async el => {
+    try {
+      const pId = el.dataset.imagePlan;
+      const bpId = el.dataset.imageBp;
+      const type = el.dataset.imageType;
+      const id = el.dataset.imageId;
+      const url = `/travenion/api/bookings/plan/${pId}/${bpId}/${type}/${id}/image`;
+      const res = await fetch(url, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const objUrl = URL.createObjectURL(blob);
+      el.style.background = `url(${objUrl}) center/cover`;
+      el.innerHTML = '';
+      el.onclick = () => openBookingImagePreview(url);
+    } catch (e) { /* ignore */ }
+  });
+}
+
+function openBookingImagePreview(authUrl) {
+  const modal = document.createElement('div');
+  modal.className = 'modal show';
+  modal.innerHTML = `
+    <div class="modal-content" style="max-width: 90vw;">
+      <div class="modal-header">
+        <h3 style="margin:0;">订单截图预览</h3>
+        <button type="button" onclick="this.closest('.modal').remove()">&times;</button>
+      </div>
+      <div class="modal-body" style="text-align:center;max-height:75vh;overflow:auto;">
+        <div id="bigImgLoading" style="padding:40px;color:#9ca3af;">加载中...</div>
+        <img id="bigImgEl" style="display:none;max-width:100%;border-radius:8px;" />
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="this.closest('.modal').remove()">关闭</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  fetch(authUrl, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } })
+    .then(r => r.blob())
+    .then(blob => {
+      const objUrl = URL.createObjectURL(blob);
+      const img = modal.querySelector('#bigImgEl');
+      img.src = objUrl;
+      img.style.display = 'inline';
+      modal.querySelector('#bigImgLoading').style.display = 'none';
+    })
+    .catch(() => {
+      modal.querySelector('#bigImgLoading').textContent = '加载失败';
+    });
+}
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// ---------- 候选计划模态框 ----------
+function openBookingPlanModal(bpId = null) {
+  const modal = document.getElementById('bookingPlanModal');
+  const titleEl = document.getElementById('bookingPlanModalTitle');
+  document.getElementById('editBookingPlanId').value = '';
+  document.getElementById('bookingPlanName').value = '';
+  document.getElementById('bookingPlanNotes').value = '';
+  if (bpId) {
+    const bp = bookingPlans.find(b => b.id === bpId);
+    if (bp) {
+      titleEl.textContent = '编辑候选计划';
+      document.getElementById('editBookingPlanId').value = bp.id;
+      document.getElementById('bookingPlanName').value = bp.name || '';
+      document.getElementById('bookingPlanNotes').value = bp.notes || '';
+    }
+  } else {
+    titleEl.textContent = '新建候选计划';
+    // 自动命名 方案A/B/C
+    const n = bookingPlans.length + 1;
+    const letter = String.fromCharCode(64 + n);
+    document.getElementById('bookingPlanName').value = `方案${letter}`;
+  }
+  modal.classList.add('show');
+}
+
+function closeBookingPlanModal() {
+  document.getElementById('bookingPlanModal').classList.remove('show');
+}
+
+async function saveBookingPlan() {
+  const id = document.getElementById('editBookingPlanId').value;
+  const name = document.getElementById('bookingPlanName').value.trim();
+  const notes = document.getElementById('bookingPlanNotes').value.trim();
+  if (!name) { showNotification('请填写计划名称', 'error'); return; }
+  try {
+    const res = id
+      ? await bookingApi(`/plan/${planId}/${id}`, 'PUT', { name, notes })
+      : await bookingApi(`/plan/${planId}`, 'POST', { name, notes });
+    if (!res.ok) throw new Error('保存失败');
+    closeBookingPlanModal();
+    await loadBookingPlans();
+    showNotification(id ? '已更新候选计划' : '已创建候选计划', 'success');
+  } catch (e) {
+    console.error(e);
+    showNotification('保存失败', 'error');
+  }
+}
+
+async function deleteBookingPlan(bpId) {
+  if (!confirm('确定删除该候选计划及其所有酒店、机票记录？')) return;
+  try {
+    const res = await bookingApi(`/plan/${planId}/${bpId}`, 'DELETE');
+    if (!res.ok) throw new Error('删除失败');
+    await loadBookingPlans();
+    showNotification('已删除候选计划', 'success');
+  } catch (e) {
+    console.error(e);
+    showNotification('删除失败', 'error');
+  }
+}
+
+// ---------- 酒店记录模态框 ----------
+function openBookingHotelModal(bpId, hotelId = null) {
+  const modal = document.getElementById('bookingHotelModal');
+  const titleEl = document.getElementById('bookingHotelModalTitle');
+  pendingHotelImage = { file: null, removed: false };
+  document.getElementById('editHotelId').value = '';
+  document.getElementById('hotelPlanId').value = bpId;
+  document.getElementById('hotelNameInput').value = '';
+  document.getElementById('hotelCityInput').value = '';
+  document.getElementById('hotelLocationInput').value = '';
+  document.getElementById('hotelPlatformInput').value = '';
+  document.getElementById('hotelNightsInput').value = 1;
+  document.getElementById('hotelPriceInput').value = 0;
+  document.getElementById('hotelOrderLinkInput').value = '';
+  document.getElementById('hotelOrderImageInput').value = '';
+  document.getElementById('hotelImagePreview').innerHTML = '';
+
+  if (hotelId) {
+    const bp = bookingPlans.find(b => b.id === bpId);
+    const h = bp && (bp.hotels || []).find(x => x.id === hotelId);
+    if (h) {
+      titleEl.textContent = '编辑酒店';
+      document.getElementById('editHotelId').value = h.id;
+      document.getElementById('hotelNameInput').value = h.hotelName || '';
+      document.getElementById('hotelCityInput').value = h.city || '';
+      document.getElementById('hotelLocationInput').value = h.location || '';
+      document.getElementById('hotelPlatformInput').value = h.platform || '';
+      document.getElementById('hotelNightsInput').value = h.nights || 1;
+      document.getElementById('hotelPriceInput').value = h.price || 0;
+      document.getElementById('hotelOrderLinkInput').value = h.orderLink || '';
+      if (h.orderImage) {
+        const preview = document.getElementById('hotelImagePreview');
+        preview.innerHTML = `
+          <div style="display:flex;align-items:center;gap:10px;">
+            <img class="existing-hotel-img" data-plan="${planId}" data-bp="${bpId}" data-id="${h.id}" style="width:70px;height:70px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb;" />
+            <button type="button" class="btn btn-danger" style="padding:4px 10px;font-size:12px;" onclick="removeExistingHotelImage()">移除截图</button>
+          </div>`;
+        loadExistingBookingImage('.existing-hotel-img');
+      }
+    }
+  } else {
+    titleEl.textContent = '添加酒店';
+  }
+  modal.classList.add('show');
+}
+
+function closeBookingHotelModal() {
+  document.getElementById('bookingHotelModal').classList.remove('show');
+}
+
+function removeExistingHotelImage() {
+  pendingHotelImage.removed = true;
+  pendingHotelImage.file = null;
+  document.getElementById('hotelImagePreview').innerHTML = '<span style="color:#9ca3af;font-size:12px;">已标记移除，保存后生效</span>';
+  document.getElementById('hotelOrderImageInput').value = '';
+}
+
+async function saveBookingHotel() {
+  const bpId = document.getElementById('hotelPlanId').value;
+  const hotelId = document.getElementById('editHotelId').value;
+  const data = {
+    hotelName: document.getElementById('hotelNameInput').value.trim(),
+    city: document.getElementById('hotelCityInput').value.trim(),
+    location: document.getElementById('hotelLocationInput').value.trim(),
+    platform: document.getElementById('hotelPlatformInput').value,
+    nights: Number(document.getElementById('hotelNightsInput').value) || 1,
+    price: Number(document.getElementById('hotelPriceInput').value) || 0,
+    orderLink: document.getElementById('hotelOrderLinkInput').value.trim()
+  };
+  if (!data.hotelName) { showNotification('请填写酒店名称', 'error'); return; }
+
+  const fileInput = document.getElementById('hotelOrderImageInput');
+  if (fileInput.files && fileInput.files[0]) {
+    pendingHotelImage.file = fileInput.files[0];
+  }
+
+  try {
+    let recordId = hotelId;
+    let res;
+    if (hotelId) {
+      res = await bookingApi(`/plan/${planId}/${bpId}/hotels/${hotelId}`, 'PUT', data);
+      if (!res.ok) throw new Error('保存失败');
+    } else {
+      res = await bookingApi(`/plan/${planId}/${bpId}/hotels`, 'POST', data);
+      if (!res.ok) throw new Error('保存失败');
+      const created = await res.json();
+      recordId = created.id;
+    }
+
+    // 处理图片
+    if (pendingHotelImage.file && recordId) {
+      const fd = new FormData();
+      fd.append('image', pendingHotelImage.file);
+      const upRes = await bookingApi(`/plan/${planId}/${bpId}/hotels/${recordId}/image`, 'POST', fd, true);
+      if (!upRes.ok) throw new Error('截图上传失败');
+    } else if (pendingHotelImage.removed && recordId && !pendingHotelImage.file) {
+      await bookingApi(`/plan/${planId}/${bpId}/hotels/${recordId}/image`, 'DELETE');
+    }
+
+    closeBookingHotelModal();
+    await loadBookingPlans();
+    showNotification(hotelId ? '已更新酒店' : '已添加酒店', 'success');
+  } catch (e) {
+    console.error(e);
+    showNotification(e.message || '保存失败', 'error');
+  }
+}
+
+async function deleteBookingHotel(bpId, hotelId) {
+  if (!confirm('确定删除该酒店记录？')) return;
+  try {
+    const res = await bookingApi(`/plan/${planId}/${bpId}/hotels/${hotelId}`, 'DELETE');
+    if (!res.ok) throw new Error('删除失败');
+    await loadBookingPlans();
+    showNotification('已删除酒店', 'success');
+  } catch (e) {
+    console.error(e);
+    showNotification('删除失败', 'error');
+  }
+}
+
+// ---------- 机票记录模态框 ----------
+function toggleTransitFields() {
+  const checked = document.getElementById('flightIsTransitInput').checked;
+  document.getElementById('transitFields').style.display = checked ? 'flex' : 'none';
+}
+
+function openBookingFlightModal(bpId, flightId = null) {
+  const modal = document.getElementById('bookingFlightModal');
+  const titleEl = document.getElementById('bookingFlightModalTitle');
+  pendingFlightImage = { file: null, removed: false };
+  document.getElementById('editFlightId').value = '';
+  document.getElementById('flightPlanId').value = bpId;
+  document.getElementById('flightNumberInput').value = '';
+  document.getElementById('flightDateInput').value = '';
+  document.getElementById('flightDepartureInput').value = '';
+  document.getElementById('flightDestinationInput').value = '';
+  document.getElementById('flightIsTransitInput').checked = false;
+  document.getElementById('flightTransitCityInput').value = '';
+  document.getElementById('flightTransitDurationInput').value = '';
+  document.getElementById('flightPlatformInput').value = '';
+  document.getElementById('flightPriceInput').value = 0;
+  document.getElementById('flightOrderLinkInput').value = '';
+  document.getElementById('flightOrderImageInput').value = '';
+  document.getElementById('flightImagePreview').innerHTML = '';
+  toggleTransitFields();
+
+  if (flightId) {
+    const bp = bookingPlans.find(b => b.id === bpId);
+    const f = bp && (bp.flights || []).find(x => x.id === flightId);
+    if (f) {
+      titleEl.textContent = '编辑机票';
+      document.getElementById('editFlightId').value = f.id;
+      document.getElementById('flightNumberInput').value = f.flightNumber || '';
+      document.getElementById('flightDateInput').value = f.date || '';
+      document.getElementById('flightDepartureInput').value = f.departure || '';
+      document.getElementById('flightDestinationInput').value = f.destination || '';
+      document.getElementById('flightIsTransitInput').checked = !!f.isTransit;
+      document.getElementById('flightTransitCityInput').value = f.transitCity || '';
+      document.getElementById('flightTransitDurationInput').value = f.transitDuration || '';
+      document.getElementById('flightPlatformInput').value = f.platform || '';
+      document.getElementById('flightPriceInput').value = f.price || 0;
+      document.getElementById('flightOrderLinkInput').value = f.orderLink || '';
+      toggleTransitFields();
+      if (f.orderImage) {
+        const preview = document.getElementById('flightImagePreview');
+        preview.innerHTML = `
+          <div style="display:flex;align-items:center;gap:10px;">
+            <img class="existing-flight-img" data-plan="${planId}" data-bp="${bpId}" data-id="${f.id}" style="width:70px;height:70px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb;" />
+            <button type="button" class="btn btn-danger" style="padding:4px 10px;font-size:12px;" onclick="removeExistingFlightImage()">移除截图</button>
+          </div>`;
+        loadExistingBookingImage('.existing-flight-img');
+      }
+    }
+  } else {
+    titleEl.textContent = '添加机票';
+  }
+  modal.classList.add('show');
+}
+
+function closeBookingFlightModal() {
+  document.getElementById('bookingFlightModal').classList.remove('show');
+}
+
+function removeExistingFlightImage() {
+  pendingFlightImage.removed = true;
+  pendingFlightImage.file = null;
+  document.getElementById('flightImagePreview').innerHTML = '<span style="color:#9ca3af;font-size:12px;">已标记移除，保存后生效</span>';
+  document.getElementById('flightOrderImageInput').value = '';
+}
+
+async function saveBookingFlight() {
+  const bpId = document.getElementById('flightPlanId').value;
+  const flightId = document.getElementById('editFlightId').value;
+  const data = {
+    flightNumber: document.getElementById('flightNumberInput').value.trim(),
+    departure: document.getElementById('flightDepartureInput').value.trim(),
+    destination: document.getElementById('flightDestinationInput').value.trim(),
+    isTransit: document.getElementById('flightIsTransitInput').checked,
+    transitCity: document.getElementById('flightTransitCityInput').value.trim(),
+    transitDuration: document.getElementById('flightTransitDurationInput').value.trim(),
+    platform: document.getElementById('flightPlatformInput').value,
+    date: document.getElementById('flightDateInput').value,
+    price: Number(document.getElementById('flightPriceInput').value) || 0,
+    orderLink: document.getElementById('flightOrderLinkInput').value.trim()
+  };
+  if (!data.flightNumber) { showNotification('请填写航班号', 'error'); return; }
+
+  const fileInput = document.getElementById('flightOrderImageInput');
+  if (fileInput.files && fileInput.files[0]) {
+    pendingFlightImage.file = fileInput.files[0];
+  }
+
+  try {
+    let recordId = flightId;
+    let res;
+    if (flightId) {
+      res = await bookingApi(`/plan/${planId}/${bpId}/flights/${flightId}`, 'PUT', data);
+      if (!res.ok) throw new Error('保存失败');
+    } else {
+      res = await bookingApi(`/plan/${planId}/${bpId}/flights`, 'POST', data);
+      if (!res.ok) throw new Error('保存失败');
+      const created = await res.json();
+      recordId = created.id;
+    }
+
+    if (pendingFlightImage.file && recordId) {
+      const fd = new FormData();
+      fd.append('image', pendingFlightImage.file);
+      const upRes = await bookingApi(`/plan/${planId}/${bpId}/flights/${recordId}/image`, 'POST', fd, true);
+      if (!upRes.ok) throw new Error('截图上传失败');
+    } else if (pendingFlightImage.removed && recordId && !pendingFlightImage.file) {
+      await bookingApi(`/plan/${planId}/${bpId}/flights/${recordId}/image`, 'DELETE');
+    }
+
+    closeBookingFlightModal();
+    await loadBookingPlans();
+    showNotification(flightId ? '已更新机票' : '已添加机票', 'success');
+  } catch (e) {
+    console.error(e);
+    showNotification(e.message || '保存失败', 'error');
+  }
+}
+
+async function deleteBookingFlight(bpId, flightId) {
+  if (!confirm('确定删除该机票记录？')) return;
+  try {
+    const res = await bookingApi(`/plan/${planId}/${bpId}/flights/${flightId}`, 'DELETE');
+    if (!res.ok) throw new Error('删除失败');
+    await loadBookingPlans();
+    showNotification('已删除机票', 'success');
+  } catch (e) {
+    console.error(e);
+    showNotification('删除失败', 'error');
+  }
+}
+
+// 加载编辑模态框中的已有截图
+async function loadExistingBookingImage(selector) {
+  const el = document.querySelector(selector);
+  if (!el) return;
+  try {
+    const { plan, bp, id } = el.dataset;
+    const type = selector.includes('hotel') ? 'hotels' : 'flights';
+    const url = `/travenion/api/bookings/plan/${plan}/${bp}/${type}/${id}/image`;
+    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+    if (!res.ok) return;
+    const blob = await res.blob();
+    el.src = URL.createObjectURL(blob);
+  } catch (e) { /* ignore */ }
+}
+
+// ---------- PDF 导出 ----------
+async function exportBookingsToPDF() {
+  if (!bookingPlans || bookingPlans.length === 0) {
+    showNotification('暂无机酒计划可导出', 'warning');
+    return;
+  }
+  try {
+    if (typeof window.html2canvas === 'undefined') {
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+    }
+    if (typeof window.jsPDF === 'undefined') {
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+    }
+
+    // 预加载所有订单截图为 data URL
+    const imageData = {}; // key: `${type}_${id}` -> dataURL
+    const tasks = [];
+    for (const bp of bookingPlans) {
+      for (const h of (bp.hotels || [])) {
+        if (h.orderImage) {
+          tasks.push(fetchBookingImageAsDataURL(planId, bp.id, 'hotels', h.id).then(d => { imageData[`hotels_${h.id}`] = d; }));
+        }
+      }
+      for (const f of (bp.flights || [])) {
+        if (f.orderImage) {
+          tasks.push(fetchBookingImageAsDataURL(planId, bp.id, 'flights', f.id).then(d => { imageData[`flights_${f.id}`] = d; }));
+        }
+      }
+    }
+    await Promise.all(tasks);
+
+    const tempDiv = document.createElement('div');
+    tempDiv.style.cssText = `position:absolute;left:-9999px;top:0;width:794px;background:white;padding:40px;font-family:'Microsoft YaHei','PingFang SC',sans-serif;font-size:14px;line-height:1.6;color:#333;`;
+    tempDiv.innerHTML = generateBookingsPDFHTML(imageData);
+    document.body.appendChild(tempDiv);
+
+    const canvas = await window.html2canvas(tempDiv, { scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff' });
+    document.body.removeChild(tempDiv);
+
+    const { jsPDF } = window.jspdf;
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const imgWidth = 210;
+    const pageHeight = 295;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    let heightLeft = imgHeight;
+    let position = 0;
+    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+    while (heightLeft >= 0) {
+      position = heightLeft - imgHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
+    const fileName = `${currentPlan.title || '旅行计划'}_机酒计划_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.pdf`;
+    pdf.save(fileName);
+    showNotification('机酒计划PDF导出成功！', 'success');
+  } catch (e) {
+    console.error('机酒计划PDF导出失败:', e);
+    showNotification('机酒计划PDF导出失败，请重试', 'error');
+  }
+}
+
+async function fetchBookingImageAsDataURL(pId, bpId, type, id) {
+  try {
+    const url = `/travenion/api/bookings/plan/${pId}/${bpId}/${type}/${id}/image`;
+    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return await new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch (e) { return null; }
+}
+
+function generateBookingsPDFHTML(imageData) {
+  const esc = escapeHtml;
+  let html = `
+    <div>
+      <div style="text-align:center;margin-bottom:20px;border-bottom:2px solid #667eea;padding-bottom:14px;">
+        <h1 style="margin:0;color:#1f2937;">${esc(currentPlan.title || '旅行计划')} - 机酒计划</h1>
+        ${currentPlan.description ? `<p style="margin:6px 0 0;color:#6b7280;">${esc(currentPlan.description)}</p>` : ''}
+        <p style="margin:6px 0 0;color:#9ca3af;font-size:12px;">生成时间：${new Date().toLocaleString('zh-CN')}</p>
+      </div>`;
+
+  bookingPlans.forEach((bp, idx) => {
+    const total = bookingPlanTotal(bp);
+    html += `
+      <div style="margin-bottom:24px;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;">
+        <div style="background:linear-gradient(135deg,#667eea,#764ba2);color:white;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;">
+          <div><span style="font-weight:700;font-size:18px;">候选方案 ${idx + 1}：${esc(bp.name)}</span>
+          ${bp.notes ? `<div style="font-size:12px;opacity:0.9;margin-top:2px;">${esc(bp.notes)}</div>` : ''}</div>
+          <div style="background:rgba(255,255,255,0.2);padding:6px 14px;border-radius:8px;font-weight:700;">总计 ${formatMoney(total)}</div>
+        </div>
+
+        <!-- 酒店 -->
+        <div style="padding:14px 16px;">
+          <h3 style="margin:0 0 10px;color:#374151;font-size:16px;">🏨 酒店明细</h3>`;
+    const hotels = bp.hotels || [];
+    if (hotels.length === 0) {
+      html += `<p style="color:#9ca3af;margin:0 0 8px;">暂无酒店记录</p>`;
+    } else {
+      html += `<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px;">
+        <thead><tr style="background:#f8fafc;">
+          <th style="border:1px solid #e5e7eb;padding:6px;text-align:left;">城市</th>
+          <th style="border:1px solid #e5e7eb;padding:6px;text-align:left;">酒店名称</th>
+          <th style="border:1px solid #e5e7eb;padding:6px;text-align:left;">地点</th>
+          <th style="border:1px solid #e5e7eb;padding:6px;">平台</th>
+          <th style="border:1px solid #e5e7eb;padding:6px;">间夜</th>
+          <th style="border:1px solid #e5e7eb;padding:6px;">每晚</th>
+          <th style="border:1px solid #e5e7eb;padding:6px;">小计</th>
+        </tr></thead><tbody>`;
+      hotels.forEach(h => {
+        html += `<tr>
+          <td style="border:1px solid #e5e7eb;padding:6px;">${esc(h.city || '')}</td>
+          <td style="border:1px solid #e5e7eb;padding:6px;font-weight:600;">${esc(h.hotelName || '')}</td>
+          <td style="border:1px solid #e5e7eb;padding:6px;">${esc(h.location || '')}</td>
+          <td style="border:1px solid #e5e7eb;padding:6px;text-align:center;">${esc(h.platform || '')}</td>
+          <td style="border:1px solid #e5e7eb;padding:6px;text-align:center;">${h.nights || 0}</td>
+          <td style="border:1px solid #e5e7eb;padding:6px;text-align:right;">${formatMoney(h.price)}</td>
+          <td style="border:1px solid #e5e7eb;padding:6px;text-align:right;font-weight:600;color:#059669;">${formatMoney(hotelSubtotal(h))}</td>
+        </tr>`;
+        const img = imageData[`hotels_${h.id}`];
+        if (img || h.orderLink) {
+          html += `<tr><td colspan="7" style="border:1px solid #e5e7eb;padding:6px;background:#fafafa;">
+            ${img ? `<img src="${img}" style="max-width:200px;max-height:200px;border-radius:6px;border:1px solid #e5e7eb;" />` : ''}
+            ${h.orderLink ? `<div style="margin-top:4px;font-size:11px;color:#2563eb;">订单链接：${esc(h.orderLink)}</div>` : ''}
+          </td></tr>`;
+        }
+      });
+      const hotelSum = hotels.reduce((s, h) => s + hotelSubtotal(h), 0);
+      html += `<tr><td colspan="6" style="border:1px solid #e5e7eb;padding:6px;text-align:right;font-weight:600;">酒店小计</td>
+        <td style="border:1px solid #e5e7eb;padding:6px;text-align:right;font-weight:700;color:#059669;">${formatMoney(hotelSum)}</td></tr>`;
+      html += `</tbody></table>`;
+    }
+
+    // 机票
+    html += `<h3 style="margin:14px 0 10px;color:#374151;font-size:16px;">✈️ 机票明细</h3>`;
+    const flights = bp.flights || [];
+    if (flights.length === 0) {
+      html += `<p style="color:#9ca3af;margin:0;">暂无机票记录</p>`;
+    } else {
+      html += `<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px;">
+        <thead><tr style="background:#f8fafc;">
+          <th style="border:1px solid #e5e7eb;padding:6px;text-align:left;">航班号</th>
+          <th style="border:1px solid #e5e7eb;padding:6px;text-align:left;">航线</th>
+          <th style="border:1px solid #e5e7eb;padding:6px;text-align:left;">中转</th>
+          <th style="border:1px solid #e5e7eb;padding:6px;text-align:left;">平台</th>
+          <th style="border:1px solid #e5e7eb;padding:6px;">日期</th>
+          <th style="border:1px solid #e5e7eb;padding:6px;">价格</th>
+        </tr></thead><tbody>`;
+      flights.forEach(f => {
+        html += `<tr>
+          <td style="border:1px solid #e5e7eb;padding:6px;font-weight:600;">${esc(f.flightNumber || '')}</td>
+          <td style="border:1px solid #e5e7eb;padding:6px;">${esc(f.departure || '')} → ${esc(f.destination || '')}</td>
+          <td style="border:1px solid #e5e7eb;padding:6px;">${f.isTransit ? esc((f.transitCity || '中转') + (f.transitDuration ? ' / ' + f.transitDuration : '')) : '直飞'}</td>
+          <td style="border:1px solid #e5e7eb;padding:6px;">${esc(f.platform || '')}</td>
+          <td style="border:1px solid #e5e7eb;padding:6px;">${f.date ? formatDate(f.date) : ''}</td>
+          <td style="border:1px solid #e5e7eb;padding:6px;text-align:right;font-weight:600;color:#059669;">${formatMoney(f.price)}</td>
+        </tr>`;
+        const img = imageData[`flights_${f.id}`];
+        if (img || f.orderLink) {
+          html += `<tr><td colspan="6" style="border:1px solid #e5e7eb;padding:6px;background:#fafafa;">
+            ${img ? `<img src="${img}" style="max-width:200px;max-height:200px;border-radius:6px;border:1px solid #e5e7eb;" />` : ''}
+            ${f.orderLink ? `<div style="margin-top:4px;font-size:11px;color:#2563eb;">订单链接：${esc(f.orderLink)}</div>` : ''}
+          </td></tr>`;
+        }
+      });
+      const flightSum = flights.reduce((s, f) => s + (Number(f.price) || 0), 0);
+      html += `<tr><td colspan="5" style="border:1px solid #e5e7eb;padding:6px;text-align:right;font-weight:600;">机票小计</td>
+        <td style="border:1px solid #e5e7eb;padding:6px;text-align:right;font-weight:700;color:#059669;">${formatMoney(flightSum)}</td></tr>`;
+      html += `</tbody></table>`;
+    }
+    html += `</div></div>`;
+  });
+
+  html += `</div>`;
+  return html;
 }

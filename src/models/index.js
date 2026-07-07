@@ -19,6 +19,9 @@ db.PlanDay = require('./planDay')(sequelize, DataTypes);
 db.PlanFile = require('./planFile')(sequelize, DataTypes);
 db.PlanShare = require('./planShare')(sequelize, DataTypes);
 db.Attraction = require('./attraction')(sequelize, DataTypes);
+db.BookingPlan = require('./bookingPlan')(sequelize, DataTypes);
+db.BookingHotel = require('./bookingHotel')(sequelize, DataTypes);
+db.BookingFlight = require('./bookingFlight')(sequelize, DataTypes);
 
 // associations
 
@@ -42,5 +45,15 @@ db.PlanShare.belongsTo(db.User, { foreignKey: 'sharedByUserId', as: 'sharedByUse
 db.TravelPlan.hasMany(db.PlanShare, { foreignKey: 'planId', as: 'shares' });
 db.User.hasMany(db.PlanShare, { foreignKey: 'sharedWithUserId', as: 'receivedShares' });
 db.User.hasMany(db.PlanShare, { foreignKey: 'sharedByUserId', as: 'sentShares' });
+
+// 机酒计划关联关系
+db.TravelPlan.hasMany(db.BookingPlan, { foreignKey: 'planId', as: 'bookingPlans' });
+db.BookingPlan.belongsTo(db.TravelPlan, { foreignKey: 'planId' });
+
+db.BookingPlan.hasMany(db.BookingHotel, { foreignKey: 'bookingPlanId', as: 'hotels', onDelete: 'CASCADE', hooks: true });
+db.BookingHotel.belongsTo(db.BookingPlan, { foreignKey: 'bookingPlanId' });
+
+db.BookingPlan.hasMany(db.BookingFlight, { foreignKey: 'bookingPlanId', as: 'flights', onDelete: 'CASCADE', hooks: true });
+db.BookingFlight.belongsTo(db.BookingPlan, { foreignKey: 'bookingPlanId' });
 
 module.exports = db;

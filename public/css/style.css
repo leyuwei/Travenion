@@ -390,6 +390,8 @@ p {
 
 .form-select:focus {
   background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%232563eb' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
 }
 
 /* 浮动标签效果 */
@@ -2410,4 +2412,74 @@ p {
 
 .geocode-result-item:hover {
   background: #f0f9ff;
+}
+
+/* ==================== 机酒计划样式 ==================== */
+.booking-plan-card {
+  transition: box-shadow 0.25s ease;
+}
+.booking-plan-card:hover {
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1) !important;
+}
+
+.booking-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.booking-table thead th {
+  background: #f1f5f9;
+  color: #475569;
+  font-weight: 600;
+  text-align: left;
+  padding: 9px 10px;
+  border-bottom: 2px solid #e2e8f0;
+  white-space: nowrap;
+}
+.booking-table tbody td {
+  padding: 9px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+  color: #374151;
+}
+.booking-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.booking-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.booking-tag {
+  display: inline-block;
+  background: #eef2ff;
+  color: #4338ca;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.booking-thumb {
+  transition: transform 0.15s ease;
+  background-size: cover !important;
+  background-position: center !important;
+}
+.booking-thumb:hover {
+  transform: scale(1.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* 响应式：窄屏下表格横向滚动 */
+@media (max-width: 768px) {
+  .booking-table {
+    font-size: 12px;
+  }
+  .booking-table thead th,
+  .booking-table tbody td {
+    padding: 7px 6px;
+  }
 }

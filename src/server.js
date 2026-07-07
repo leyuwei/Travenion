@@ -8,6 +8,7 @@ const config = require('./config');
 const authRoutes = require('./routes/auth');
 const planRoutes = require('./routes/plans');
 const attractionRoutes = require('./routes/attractions');
+const bookingRoutes = require('./routes/bookings');
 
 // 加载OpenAPI文档
 const swaggerDocument = YAML.load(path.join(__dirname, '..', 'openapi.yaml'));
@@ -27,6 +28,7 @@ app.use('/travenion/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument,
 app.use('/travenion/api/auth', authRoutes);
 app.use('/travenion/api/plans', planRoutes);
 app.use('/travenion/api/attractions', attractionRoutes);
+app.use('/travenion/api/bookings', bookingRoutes);
 
 const start = async () => {
   try {
@@ -37,6 +39,9 @@ const start = async () => {
     await db.PlanFile.sync({ alter: true });
     await db.Attraction.sync({ alter: true });
     await db.PlanShare.sync({ alter: true });
+    await db.BookingPlan.sync({ alter: true });
+    await db.BookingHotel.sync({ alter: true });
+    await db.BookingFlight.sync({ alter: true });
     
     app.listen(config.app.port, () => console.log(`服务器已在端口${config.app.port}启动`));
   } catch (e) {
