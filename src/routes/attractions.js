@@ -14,9 +14,8 @@ router.get('/geocode', async (req, res) => {
     if (!q || q.trim().length === 0) {
       return res.json([]);
     }
-    
-    const results = [];
-    
+
+    // 坐标直解
     const coordMatch = q.match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/);
     if (coordMatch) {
       const lat = parseFloat(coordMatch[1]);
@@ -30,71 +29,171 @@ router.get('/geocode', async (req, res) => {
         }]);
       }
     }
-    
-    try {
-      const nomResponse = await axios.get('https://nominatim.openstreetmap.org/search', {
-        params: {
-          format: 'json',
-          q: q,
-          limit: 5,
-          addressdetails: 1,
-          extratags: 1
-        },
-        headers: {
-          'User-Agent': 'Travenion/1.0 (travel planning application)'
-        }
-      });
-      
-      if (nomResponse.data) {
-        for (const item of nomResponse.data) {
-          results.push({
-            name: item.name || item.display_name.split(',')[0],
-            display_name: item.display_name,
-            lat: parseFloat(item.lat),
-            lng: parseFloat(item.lon),
-            type: item.type,
-            source: 'nominatim'
-          });
-        }
-      }
-    } catch (nomError) {
-      console.warn('Nominatim搜索失败:', nomError.message);
-    }
-    
-    if (results.length === 0 && process.env.BAIDU_MAP_AK && process.env.BAIDU_MAP_AK !== 'your_baidu_map_ak') {
-      try {
-        const baiduResponse = await axios.get('https://api.map.baidu.com/place/v2/search', {
-          params: {
-            query: q,
-            output: 'json',
-            ak: process.env.BAIDU_MAP_AK,
-            page_size: 5
-          }
-        });
-        
-        if (baiduResponse.data.results) {
-          for (const item of baiduResponse.data.results) {
-            results.push({
-              name: item.name,
-              display_name: item.address || item.name,
-              lat: item.location.lat,
-              lng: item.location.lng,
-              type: 'baidu_place',
-              source: 'baidu'
+
+    // 并行调用多个地理编码服务，任一可用即可返回结果
+    const tasks = [];
+
+    // Nominatim (OpenStreetMap) - 海外地址效果好，部分地区可能不可达
+    tasks.push(
+      axios.get('https://nominatim.openstreetmap.org/search', {
+        params: { format: 'json', q, limit: 5, addressdetails: 1 },
+        headers: { 'User-Agent': 'Travenion/1.0 (travel planning application)' },
+        timeout: 5000
+      }).then(resp => {
+        const items = [];
+        if (resp.data) {
+          for (const item of resp.data) {
+            items.push({
+              name: item.name || (item.display_name || '').split(',')[0],
+              display_name: item.display_name,
+              lat: parseFloat(item.lat),
+              lng: parseFloat(item.lon),
+              type: item.type,
+              source: 'nominatim'
             });
           }
         }
-      } catch (baiduError) {
-        console.warn('百度地图搜索失败:', baiduError.message);
-      }
+        return items;
+      }).catch(err => {
+        console.warn('Nominatim搜索失败:', err.message);
+        return [];
+      })
+    );
+
+    // Photon (Komoot) - 基于 OSM 数据，国内可达性好
+    tasks.push(
+      axios.get('https://photon.komoot.io/api/', {
+        params: { q, limit: 5 },
+        timeout: 5000
+      }).then(resp => {
+        const items = [];
+        if (resp.data && resp.data.features) {
+          for (const feature of resp.data.features) {
+            const props = feature.properties || {};
+            const coords = feature.geometry && feature.geometry.coordinates;
+            if (coords && coords.length >= 2) {
+              const parts = [props.name, props.city, props.state, props.country].filter(Boolean);
+              items.push({
+                name: props.name || props.city || '未知地点',
+                display_name: parts.join(', '),
+                lat: coords[1],
+                lng: coords[0],
+                type: props.osm_value || props.osm_key,
+                source: 'photon'
+              });
+            }
+          }
+        }
+        return items;
+      }).catch(err => {
+        console.warn('Photon搜索失败:', err.message);
+        return [];
+      })
+    );
+
+    // 百度地图 - 国内地址效果最佳（需配置 AK）
+    if (process.env.BAIDU_MAP_AK && process.env.BAIDU_MAP_AK !== 'your_baidu_map_ak') {
+      tasks.push(
+        axios.get('https://api.map.baidu.com/place/v2/search', {
+          params: { query: q, output: 'json', ak: process.env.BAIDU_MAP_AK, page_size: 5 },
+          timeout: 5000
+        }).then(resp => {
+          const items = [];
+          if (resp.data && resp.data.results) {
+            for (const item of resp.data.results) {
+              items.push({
+                name: item.name,
+                display_name: item.address || item.name,
+                lat: item.location.lat,
+                lng: item.location.lng,
+                type: 'baidu_place',
+                source: 'baidu'
+              });
+            }
+          }
+          return items;
+        }).catch(err => {
+          console.warn('百度地图搜索失败:', err.message);
+          return [];
+        })
+      );
     }
-    
-    res.json(results);
+
+    const allResults = await Promise.all(tasks);
+    res.json(allResults.flat());
   } catch (error) {
     console.error('地理编码搜索失败:', error);
     res.status(500).json({ message: '地理编码搜索失败', error: error.message });
   }
 });
+
+// 自动地理编码辅助函数（用于景点保存时补全坐标）
+async function autoGeocode(searchQuery) {
+  if (!searchQuery) return null;
+
+  // 坐标格式直解
+  const coordMatch = searchQuery.match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/);
+  if (coordMatch) {
+    const lat = parseFloat(coordMatch[1]);
+    const lng = parseFloat(coordMatch[2]);
+    if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+      return { latitude: lat, longitude: lng };
+    }
+  }
+
+  // 并行尝试多个服务，取第一个有效结果
+  const sources = [];
+
+  if (process.env.BAIDU_MAP_AK && process.env.BAIDU_MAP_AK !== 'your_baidu_map_ak') {
+    sources.push(
+      axios.get('https://api.map.baidu.com/geocoding/v3/', {
+        params: { address: searchQuery, output: 'json', ak: process.env.BAIDU_MAP_AK },
+        timeout: 5000
+      }).then(resp => {
+        if (resp.data.status === 0 && resp.data.result) {
+          return { latitude: resp.data.result.location.lat, longitude: resp.data.result.location.lng };
+        }
+        return null;
+      }).catch(() => null)
+    );
+  }
+
+  sources.push(
+    axios.get('https://nominatim.openstreetmap.org/search', {
+      params: { format: 'json', q: searchQuery, limit: 1 },
+      headers: { 'User-Agent': 'Travenion/1.0 (travel planning application)' },
+      timeout: 5000
+    }).then(resp => {
+      if (resp.data && resp.data.length > 0) {
+        return { latitude: parseFloat(resp.data[0].lat), longitude: parseFloat(resp.data[0].lon) };
+      }
+      return null;
+    }).catch(() => null)
+  );
+
+  sources.push(
+    axios.get('https://photon.komoot.io/api/', {
+      params: { q: searchQuery, limit: 1 },
+      timeout: 5000
+    }).then(resp => {
+      if (resp.data && resp.data.features && resp.data.features.length > 0) {
+        const coords = resp.data.features[0].geometry.coordinates;
+        if (coords && coords.length >= 2) {
+          return { latitude: coords[1], longitude: coords[0] };
+        }
+      }
+      return null;
+    }).catch(() => null)
+  );
+
+  const results = await Promise.all(sources);
+  for (const r of results) {
+    if (r && r.latitude != null && r.longitude != null) {
+      return r;
+    }
+  }
+  return null;
+}
 
 // 获取某天的所有景点
 router.get('/day/:dayId', async (req, res) => {
@@ -179,65 +278,12 @@ router.post('/day/:dayId', async (req, res) => {
     
     let latitude = req.body.latitude || null;
     let longitude = req.body.longitude || null;
-    
+
     if (!latitude || !longitude) {
-      if (address) {
-        const coordMatch = address.match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/);
-        if (coordMatch) {
-          const parsedLat = parseFloat(coordMatch[1]);
-          const parsedLng = parseFloat(coordMatch[2]);
-          if (parsedLat >= -90 && parsedLat <= 90 && parsedLng >= -180 && parsedLng <= 180) {
-            latitude = parsedLat;
-            longitude = parsedLng;
-          }
-        }
-      }
-    }
-    
-    if (!latitude || !longitude) {
-      const searchQuery = address || name;
-      if (searchQuery) {
-        try {
-          if (process.env.BAIDU_MAP_AK && process.env.BAIDU_MAP_AK !== 'your_baidu_map_ak') {
-            const geocodeResponse = await axios.get('https://api.map.baidu.com/geocoding/v3/', {
-              params: {
-                address: searchQuery,
-                output: 'json',
-                ak: process.env.BAIDU_MAP_AK
-              }
-            });
-            
-            if (geocodeResponse.data.status === 0 && geocodeResponse.data.result) {
-              latitude = geocodeResponse.data.result.location.lat;
-              longitude = geocodeResponse.data.result.location.lng;
-            }
-          }
-        } catch (geocodeError) {
-          console.warn('百度地图地理编码失败:', geocodeError.message);
-        }
-        
-        if (!latitude || !longitude) {
-          try {
-            const nomResponse = await axios.get('https://nominatim.openstreetmap.org/search', {
-              params: {
-                format: 'json',
-                q: searchQuery,
-                limit: 1,
-                addressdetails: 1
-              },
-              headers: {
-                'User-Agent': 'Travenion/1.0 (travel planning application)'
-              }
-            });
-            
-            if (nomResponse.data && nomResponse.data.length > 0) {
-              latitude = parseFloat(nomResponse.data[0].lat);
-              longitude = parseFloat(nomResponse.data[0].lon);
-            }
-          } catch (nomError) {
-            console.warn('Nominatim地理编码失败:', nomError.message);
-          }
-        }
+      const coords = await autoGeocode(address || name);
+      if (coords) {
+        latitude = coords.latitude;
+        longitude = coords.longitude;
       }
     }
     
@@ -301,66 +347,12 @@ router.put('/:id', async (req, res) => {
     
     let newLatitude = latitude || null;
     let newLongitude = longitude || null;
-    
+
     if (!newLatitude || !newLongitude) {
-      const searchQuery = address || name;
-      if (searchQuery) {
-        const coordMatch = searchQuery.match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/);
-        if (coordMatch) {
-          const parsedLat = parseFloat(coordMatch[1]);
-          const parsedLng = parseFloat(coordMatch[2]);
-          if (parsedLat >= -90 && parsedLat <= 90 && parsedLng >= -180 && parsedLng <= 180) {
-            newLatitude = parsedLat;
-            newLongitude = parsedLng;
-          }
-        }
-      }
-    }
-    
-    if (!newLatitude || !newLongitude) {
-      const searchQuery = address || name;
-      if (searchQuery) {
-        try {
-          if (process.env.BAIDU_MAP_AK && process.env.BAIDU_MAP_AK !== 'your_baidu_map_ak') {
-            const geocodeResponse = await axios.get('https://api.map.baidu.com/geocoding/v3/', {
-              params: {
-                address: searchQuery,
-                output: 'json',
-                ak: process.env.BAIDU_MAP_AK
-              }
-            });
-            
-            if (geocodeResponse.data.status === 0 && geocodeResponse.data.result) {
-              newLatitude = geocodeResponse.data.result.location.lat;
-              newLongitude = geocodeResponse.data.result.location.lng;
-            }
-          }
-        } catch (geocodeError) {
-          console.warn('百度地图地理编码失败:', geocodeError.message);
-        }
-        
-        if (!newLatitude || !newLongitude) {
-          try {
-            const nomResponse = await axios.get('https://nominatim.openstreetmap.org/search', {
-              params: {
-                format: 'json',
-                q: searchQuery,
-                limit: 1,
-                addressdetails: 1
-              },
-              headers: {
-                'User-Agent': 'Travenion/1.0 (travel planning application)'
-              }
-            });
-            
-            if (nomResponse.data && nomResponse.data.length > 0) {
-              newLatitude = parseFloat(nomResponse.data[0].lat);
-              newLongitude = parseFloat(nomResponse.data[0].lon);
-            }
-          } catch (nomError) {
-            console.warn('Nominatim地理编码失败:', nomError.message);
-          }
-        }
+      const coords = await autoGeocode(address || name);
+      if (coords) {
+        newLatitude = coords.latitude;
+        newLongitude = coords.longitude;
       }
     }
     

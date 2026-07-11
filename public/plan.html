@@ -128,6 +128,14 @@
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
           <h2 class="card-title">📋 行程安排</h2>
           <div class="itinerary-actions" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <button id="aiPromptBtn" class="btn btn-outline" title="生成AI规划提示词">
+              <i class="fas fa-robot"></i>
+              <span class="btn-text">AI提示词</span>
+            </button>
+            <button id="aiImportBtn" class="btn btn-outline" title="导入AI规划结果">
+              <i class="fas fa-magic"></i>
+              <span class="btn-text">导入AI规划</span>
+            </button>
             <button id="exportBtn" class="btn btn-outline" title="导出行程">
               <i class="fas fa-download"></i>
               <span class="btn-text">导出</span>
@@ -350,7 +358,7 @@
             <input type="hidden" id="attractionLatitude">
             <input type="hidden" id="attractionLongitude">
             <small class="form-text text-muted" style="margin-top: 5px; font-size: 12px; color: #6c757d;">
-              💡 在上方搜索框中输入名称搜索并选择结果，坐标会自动填充。<br>
+              💡 点击搜索结果填入地点全名，或点击结果中的「填入坐标」按钮填入经纬度。<br>
               也可直接输入经纬度格式：如"35.6586,139.7454"
             </small>
           </div>
@@ -364,6 +372,63 @@
         <button type="button" class="btn btn-secondary" onclick="closeAttractionModal()">取消</button>
         <button type="button" class="btn btn-primary" onclick="saveAttraction()">
           <span id="attractionSaveText">保存</span>
+          <span class="loading" style="display: none;"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI规划提示词模态框 -->
+  <div id="aiPromptModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 style="margin: 0;">🤖 AI规划提示词</h2>
+        <button class="close" onclick="closeModal('aiPromptModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">
+            将以下提示词复制给AI（ChatGPT / 文心一言 / 通义千问等），AI生成行程后将结果粘贴到「导入AI规划」中即可一键导入。
+          </label>
+          <textarea id="aiPromptText" class="form-control" rows="18" style="font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.5;" readonly></textarea>
+        </div>
+        <div style="display: flex; gap: 8px; margin-top: 10px;">
+          <button type="button" class="btn btn-outline" onclick="customizeAIPrompt()" style="flex: 1;">
+            <i class="fas fa-edit"></i> 自定义需求
+          </button>
+          <button type="button" class="btn btn-primary" onclick="copyAIPrompt()" style="flex: 1;">
+            <i class="fas fa-copy"></i> 复制提示词
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('aiPromptModal')">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 导入AI规划结果模态框 -->
+  <div id="aiImportModal" class="modal">
+    <div class="modal-content" style="max-width: 700px;">
+      <div class="modal-header">
+        <h2 style="margin: 0;">✨ 导入AI规划结果</h2>
+        <button class="close" onclick="closeModal('aiImportModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">将AI返回的JSON粘贴到下方</label>
+          <textarea id="aiImportText" class="form-control" rows="12" style="font-family: 'Courier New', monospace; font-size: 12px;" placeholder='在此粘贴AI返回的JSON，例如：&#10;{&#10;  "days": [&#10;    {&#10;      "dayIndex": 1,&#10;      "city": "东京",&#10;      "attractions": [&#10;        { "name": "浅草寺", "address": "东京都台东区浅草2-3-1" }&#10;      ]&#10;    }&#10;  ]&#10;}'></textarea>
+        </div>
+        <div id="aiImportPreview" style="display: none; margin-top: 15px;"></div>
+        <div id="aiImportStatus" style="display: none;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('aiImportModal')">取消</button>
+        <button type="button" class="btn btn-outline" onclick="previewAIImport()">
+          <i class="fas fa-eye"></i> 预览
+        </button>
+        <button type="button" class="btn btn-primary" onclick="executeAIImport()">
+          <span id="aiImportBtnText">导入并完善</span>
           <span class="loading" style="display: none;"></span>
         </button>
       </div>

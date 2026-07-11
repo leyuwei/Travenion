@@ -2317,6 +2317,18 @@ document.addEventListener('DOMContentLoaded', () => {
       openDayModal();
     });
   }
+
+  // AI规划提示词按钮
+  const aiPromptBtn = document.getElementById('aiPromptBtn');
+  if (aiPromptBtn) {
+    aiPromptBtn.addEventListener('click', () => { generateAIPrompt(); });
+  }
+
+  // 导入AI规划按钮
+  const aiImportBtn = document.getElementById('aiImportBtn');
+  if (aiImportBtn) {
+    aiImportBtn.addEventListener('click', () => { openAIImportModal(); });
+  }
   
   // 上传文件按钮
   const uploadFileBtn = document.getElementById('uploadFileBtn');
@@ -2659,6 +2671,383 @@ if (!localStorage.getItem('token')) {
   loadPlan();
 }
 
+// ==================== AI规划功能 ====================
+
+// 生成AI规划提示词
+function generateAIPrompt() {
+  const planTitle = currentPlan ? (currentPlan.title || '旅行计划') : '旅行计划';
+  const planDesc = currentPlan ? (currentPlan.description || '') : '';
+  const existingDays = days && days.length > 0 ? days.length : 0;
+
+  let existingInfo = '';
+  if (existingDays > 0) {
+    const sorted = [...days].sort((a, b) => a.dayIndex - b.dayIndex);
+    existingInfo = '\n\n## 已有行程（可参考或覆盖）\n';
+    sorted.forEach(d => {
+      const attractions = (d.attractionsList || []).map(a => a.name).join('、');
+      existingInfo += `- 第${d.dayIndex}天 ${d.city || ''}：${attractions || '（暂无景点）'}\n`;
+    });
+  }
+
+  const prompt = `你是一位专业的旅行规划师。请为以下旅行计划生成详细的行程安排。
+
+## 旅行计划信息
+- 标题：${planTitle}
+- 描述：${planDesc || '（无）'}${existingInfo}
+
+## 要求
+1. 为每一天规划合理的游览路线，景点按地理位置就近排列
+2. 每个景点提供准确的中文名称、地址
+3. 估算每个景点的游览时长（分钟）
+4. 给出每天的交通方式建议
+
+## 输出格式（严格遵循，必须输出合法JSON，不要输出任何其他内容）
+\`\`\`json
+{
+  "days": [
+    {
+      "dayIndex": 1,
+      "date": "2024-01-01",
+      "city": "东京",
+      "transportation": "地铁",
+      "attractions": [
+        {
+          "name": "浅草寺",
+          "address": "东京都台东区浅草2-3-1",
+          "description": "东京最古老的寺庙",
+          "estimatedDuration": 90,
+          "notes": "建议上午前往避开人流"
+        },
+        {
+          "name": "东京塔",
+          "address": "东京都港区芝公园4-2-8",
+          "description": "东京地标建筑",
+          "estimatedDuration": 60
+        }
+      ]
+    },
+    {
+      "dayIndex": 2,
+      "city": "横滨",
+      "transportation": "JR线",
+      "attractions": [
+        {
+          "name": "横滨港未来21",
+          "address": "神奈川县横滨市西区",
+          "description": "海滨公园",
+          "estimatedDuration": 120
+        }
+      ]
+    }
+  ]
+}
+\`\`\`
+
+## 注意事项
+- dayIndex 从1开始递增
+- date 为 YYYY-MM-DD 格式，若不确定可留空字符串 ""
+- attractions 数组每项至少包含 name 和 address
+- estimatedDuration 为整数分钟
+- 只输出JSON，不要输出任何解释、前言或后语`;
+
+  document.getElementById('aiPromptText').value = prompt;
+  openModal('aiPromptModal');
+}
+
+// 自定义AI提示词需求
+function customizeAIPrompt() {
+  const customReq = prompt('请输入您的额外需求（例如：5天、预算中等、亲子游、避免购物点等）：', '5天，预算适中，亲子游');
+  if (customReq && customReq.trim()) {
+    const ta = document.getElementById('aiPromptText');
+    ta.value = '## 额外需求\n' + customReq.trim() + '\n\n---\n\n' + ta.value;
+    showNotification('已追加自定义需求', 'success');
+  }
+}
+
+// 复制AI提示词
+function copyAIPrompt() {
+  const ta = document.getElementById('aiPromptText');
+  ta.select();
+  ta.setSelectionRange(0, 99999);
+  try {
+    document.execCommand('copy');
+    showNotification('提示词已复制到剪贴板', 'success');
+  } catch (e) {
+    showNotification('复制失败，请手动选择复制', 'error');
+  }
+}
+
+// 打开导入AI规划模态框
+function openAIImportModal() {
+  document.getElementById('aiImportText').value = '';
+  document.getElementById('aiImportPreview').style.display = 'none';
+  document.getElementById('aiImportPreview').innerHTML = '';
+  document.getElementById('aiImportStatus').style.display = 'none';
+  document.getElementById('aiImportStatus').innerHTML = '';
+  document.getElementById('aiImportBtnText').textContent = '导入并完善';
+  openModal('aiImportModal');
+}
+
+// 修正全角/半角符号、多余空格等异常字符
+function sanitizeAIJSON(rawText) {
+  if (!rawText) return null;
+  let text = rawText.trim();
+
+  // 去除AI常见的markdown代码块包裹 ```json ... ``` 或 ``` ... ```
+  text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+
+  // 如果AI在JSON前后输出了多余文字，尝试提取第一个 { 到最后一个 } 之间的内容
+  const firstBrace = text.indexOf('{');
+  const lastBrace = text.lastIndexOf('}');
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    text = text.substring(firstBrace, lastBrace + 1);
+  }
+
+  // 全角空格转半角
+  text = text.replace(/\u3000/g, ' ');
+  // 全角逗号、冒号转半角（仅在键值上下文中）
+  text = text.replace(/，/g, ',').replace(/：/g, ':');
+  // 全角引号转半角引号（包括「」『』）
+  text = text.replace(/\u201c/g, '"').replace(/\u201d/g, '"');   // 中文双引号
+  text = text.replace(/\u2018/g, "'").replace(/\u2019/g, "'");   // 中文单引号
+  text = text.replace(/「/g, '"').replace(/」/g, '"');             // 直角引号
+  text = text.replace(/『/g, '"').replace(/』/g, '"');
+  // 去除键值中的尾随逗号（JSON末尾多余逗号）
+  text = text.replace(/,\s*([}\]])/g, '$1');
+  // 去除多余空格：键冒号后的空格规范化
+  text = text.replace(/"\s*:\s*"/g, '": "');
+
+  return text;
+}
+
+// 预览AI导入内容
+function previewAIImport() {
+  const rawText = document.getElementById('aiImportText').value;
+  const previewDiv = document.getElementById('aiImportPreview');
+  const statusDiv = document.getElementById('aiImportStatus');
+
+  if (!rawText.trim()) {
+    showNotification('请先粘贴AI返回的内容', 'error');
+    return;
+  }
+
+  const cleaned = sanitizeAIJSON(rawText);
+  let data;
+  try {
+    data = JSON.parse(cleaned);
+  } catch (e) {
+    previewDiv.style.display = 'block';
+    previewDiv.innerHTML = `<div style="padding: 12px; background: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px; color: #b91c1c;">
+      <i class="fas fa-exclamation-circle"></i> <strong>JSON解析失败</strong><br>
+      <span style="font-size: 12px;">${e.message}</span><br>
+      <details style="margin-top: 8px;"><summary style="cursor: pointer; font-size: 12px;">查看修正后的内容</summary><pre style="font-size: 11px; max-height: 200px; overflow: auto; white-space: pre-wrap; margin-top: 8px;">${escapeHtml(cleaned)}</pre></details>
+    </div>`;
+    return;
+  }
+
+  if (!data.days || !Array.isArray(data.days) || data.days.length === 0) {
+    previewDiv.style.display = 'block';
+    previewDiv.innerHTML = `<div style="padding: 12px; background: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px; color: #b91c1c;">
+      <i class="fas fa-exclamation-circle"></i> 未找到有效的 days 数组
+    </div>`;
+    return;
+  }
+
+  let totalAttractions = 0;
+  let missingCoord = 0;
+  const daysHtml = data.days.map(d => {
+    const attractions = (d.attractions || []);
+    totalAttractions += attractions.length;
+    missingCoord += attractions.filter(a => !a.latitude || !a.longitude).length;
+    const aHtml = attractions.map(a => `<li style="margin: 3px 0;"><i class="fas fa-map-pin" style="color: #3b82f6; font-size: 10px;"></i> ${escapeHtml(a.name || '')} ${a.estimatedDuration ? `<span style="color:#9ca3af;font-size:11px;">(${a.estimatedDuration}分钟)</span>` : ''}</li>`).join('');
+    return `<div style="margin-bottom: 8px; padding: 8px; background: #f8fafc; border-radius: 6px;">
+      <strong>第${d.dayIndex || '?'}天 · ${escapeHtml(d.city || '')}</strong>
+      ${d.transportation ? `<span style="color:#9ca3af;font-size:11px;"> | ${escapeHtml(d.transportation)}</span>` : ''}
+      <ul style="margin: 5px 0 0 20px; padding: 0; list-style: none;">${aHtml || '<li style="color:#9ca3af;font-size:12px;">无景点</li>'}</ul>
+    </div>`;
+  }).join('');
+
+  previewDiv.style.display = 'block';
+  previewDiv.innerHTML = `
+    <div style="padding: 12px; background: #f0f9ff; border: 1px solid #93c5fd; border-radius: 8px;">
+      <div style="font-weight: 600; margin-bottom: 8px;"><i class="fas fa-check-circle" style="color: #22c55e;"></i> 解析成功</div>
+      <div style="font-size: 13px; color: #1f2937; margin-bottom: 10px;">
+        共 <strong>${data.days.length}</strong> 天，<strong>${totalAttractions}</strong> 个景点
+        ${missingCoord > 0 ? `<br><span style="color: #d97706; font-size: 12px;"><i class="fas fa-info-circle"></i> ${missingCoord}个景点缺少坐标，导入时将自动搜索补全</span>` : ''}
+      </div>
+      <div>${daysHtml}</div>
+    </div>`;
+  statusDiv.style.display = 'none';
+}
+
+// 通过geocode搜索补全景点坐标（复用后端 /api/attractions/geocode）
+async function enrichAttractionWithGeocode(attraction) {
+  // 已有有效坐标则跳过
+  if (attraction.latitude && attraction.longitude &&
+      !isNaN(parseFloat(attraction.latitude)) && !isNaN(parseFloat(attraction.longitude))) {
+    return;
+  }
+  const query = attraction.address || attraction.name;
+  if (!query) return;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const response = await fetch(`/travenion/api/attractions/geocode?q=${encodeURIComponent(query)}`, {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    if (response.ok) {
+      const results = await response.json();
+      if (results && results.length > 0) {
+        attraction.latitude = results[0].lat;
+        attraction.longitude = results[0].lng;
+        // 若地址为空，用搜索结果补全
+        if (!attraction.address) {
+          attraction.address = results[0].name || results[0].display_name;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('补全坐标失败:', attraction.name, e.message);
+  }
+}
+
+// 执行AI导入
+async function executeAIImport() {
+  const rawText = document.getElementById('aiImportText').value;
+  if (!rawText.trim()) {
+    showNotification('请先粘贴AI返回的内容', 'error');
+    return;
+  }
+
+  const cleaned = sanitizeAIJSON(rawText);
+  let data;
+  try {
+    data = JSON.parse(cleaned);
+  } catch (e) {
+    showNotification('JSON解析失败：' + e.message, 'error');
+    return;
+  }
+
+  if (!data.days || !Array.isArray(data.days) || data.days.length === 0) {
+    showNotification('未找到有效的行程数据', 'error');
+    return;
+  }
+
+  const btnText = document.getElementById('aiImportBtnText');
+  const statusDiv = document.getElementById('aiImportStatus');
+  btnText.style.display = 'none';
+  btnText.parentElement.querySelector('.loading').style.display = 'inline-block';
+
+  try {
+    // 先统计需要补全坐标的景点数
+    let enrichmentCount = 0;
+    let totalAttractions = 0;
+    for (const day of data.days) {
+      const attractions = day.attractions || [];
+      totalAttractions += attractions.length;
+      for (const a of attractions) {
+        if (!a.latitude || !a.longitude) enrichmentCount++;
+      }
+    }
+
+    statusDiv.style.display = 'block';
+
+    // 第一步：补全坐标（带进度）
+    if (enrichmentCount > 0) {
+      let done = 0;
+      statusDiv.innerHTML = `<div style="padding:10px; background:#fef3c7; border:1px solid #fcd34d; border-radius:8px; font-size:13px;">
+        <i class="fas fa-spinner fa-spin"></i> 正在搜索并补全坐标 (${done}/${enrichmentCount})...
+      </div>`;
+
+      for (const day of data.days) {
+        for (const a of (day.attractions || [])) {
+          if (!a.latitude || !a.longitude) {
+            await enrichAttractionWithGeocode(a);
+            done++;
+            statusDiv.innerHTML = `<div style="padding:10px; background:#fef3c7; border:1px solid #fcd34d; border-radius:8px; font-size:13px;">
+              <i class="fas fa-spinner fa-spin"></i> 正在搜索并补全坐标 (${done}/${enrichmentCount})...
+            </div>`;
+          }
+        }
+      }
+    }
+
+    // 第二步：逐天创建行程和景点
+    let dayDone = 0;
+    const totalDays = data.days.length;
+    statusDiv.innerHTML = `<div style="padding:10px; background:#dbeafe; border:1px solid #93c5fd; border-radius:8px; font-size:13px;">
+      <i class="fas fa-spinner fa-spin"></i> 正在创建行程 (${dayDone}/${totalDays})...
+    </div>`;
+
+    for (const day of data.days) {
+      // 创建行程日
+      const dayBody = {
+        dayIndex: parseInt(day.dayIndex) || (dayDone + 1),
+        date: day.date || null,
+        city: day.city || '未指定',
+        transportation: day.transportation || ''
+      };
+      const dayResp = await fetch(`/travenion/api/plans/${planId}/days`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(dayBody)
+      });
+      if (!dayResp.ok) throw new Error('创建行程日失败');
+      const dayData = await dayResp.json();
+      const newDayId = dayData.id;
+
+      // 逐个创建景点
+      for (const a of (day.attractions || [])) {
+        const aBody = {
+          name: a.name || '未命名景点',
+          address: a.address || '',
+          description: a.description || '',
+          estimatedDuration: a.estimatedDuration ? parseInt(a.estimatedDuration) : null,
+          notes: a.notes || ''
+        };
+        if (a.latitude && !isNaN(parseFloat(a.latitude))) aBody.latitude = parseFloat(a.latitude);
+        if (a.longitude && !isNaN(parseFloat(a.longitude))) aBody.longitude = parseFloat(a.longitude);
+        await fetch(`/travenion/api/attractions/day/${newDayId}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(aBody)
+        });
+      }
+
+      dayDone++;
+      statusDiv.innerHTML = `<div style="padding:10px; background:#dbeafe; border:1px solid #93c5fd; border-radius:8px; font-size:13px;">
+        <i class="fas fa-spinner fa-spin"></i> 正在创建行程 (${dayDone}/${totalDays})...
+      </div>`;
+    }
+
+    statusDiv.innerHTML = `<div style="padding:10px; background:#d1fae5; border:1px solid #6ee7b7; border-radius:8px; font-size:13px;">
+      <i class="fas fa-check-circle"></i> 导入成功！共创建 ${totalDays} 天行程，${totalAttractions} 个景点。
+    </div>`;
+
+    showNotification('AI规划导入成功', 'success');
+    closeModal('aiImportModal');
+    await loadDays();
+    loadMap();
+  } catch (error) {
+    console.error('AI导入失败:', error);
+    statusDiv.innerHTML = `<div style="padding:10px; background:#fef2f2; border:1px solid #fca5a5; border-radius:8px; font-size:13px; color:#b91c1c;">
+      <i class="fas fa-exclamation-circle"></i> 导入失败：${error.message}
+    </div>`;
+    showNotification('导入失败：' + error.message, 'error');
+  } finally {
+    btnText.style.display = 'inline';
+    btnText.parentElement.querySelector('.loading').style.display = 'none';
+  }
+}
+
 // ==================== 景点管理功能 ====================
 
 // 加载行程日的景点列表
@@ -2763,6 +3152,7 @@ let copiedAttraction = null;
 // 地理编码搜索相关变量
 let geocodeTimer = null;
 let selectedGeocodeResult = null;
+let geocodeRequestId = 0;
 
 // 添加景点项
 function addAttractionItem() {
@@ -2801,42 +3191,69 @@ async function searchGeocode(query) {
     resultsContainer.innerHTML = '';
     return;
   }
-  
+
+  // 请求计数器，用于忽略过期的搜索结果
+  const currentRequestId = ++geocodeRequestId;
+
   resultsContainer.innerHTML = '<div style="padding: 10px; text-align: center; color: #6b7280;"><i class="fas fa-spinner fa-spin"></i> 搜索中...</div>';
   resultsContainer.style.display = 'block';
-  
+
+  // 前端超时保护，防止后端响应过慢时无限等待
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 12000);
+
   try {
     const response = await fetch(`/travenion/api/attractions/geocode?q=${encodeURIComponent(query)}`, {
-      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+      signal: controller.signal
     });
-    
+
+    clearTimeout(timeoutId);
+
     if (!response.ok) {
       throw new Error('搜索失败');
     }
-    
+
     const results = await response.json();
-    
+
+    // 如果在等待期间用户又输入了新内容，忽略此次结果
+    if (currentRequestId !== geocodeRequestId) return;
+
     if (results.length === 0) {
       resultsContainer.innerHTML = '<div style="padding: 10px; text-align: center; color: #9ca3af;">未找到匹配的地点，请尝试更详细的地址或直接输入经纬度</div>';
       return;
     }
-    
-    resultsContainer.innerHTML = results.map((result, index) => `
-      <div onclick="selectGeocodeResult(${index})" class="geocode-result-item" data-index="${index}" 
-           style="padding: 10px 12px; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.15s;">
+
+    resultsContainer.innerHTML = results.map((result, index) => {
+      const lat = typeof result.lat === 'number' ? result.lat : parseFloat(result.lat);
+      const lng = typeof result.lng === 'number' ? result.lng : parseFloat(result.lng);
+      const coordStr = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+      const sourceLabel = result.source === 'nominatim' || result.source === 'photon' ? 'OSM' : result.source === 'baidu' ? '百度' : '坐标';
+      return `
+      <div class="geocode-result-item" data-index="${index}"
+           style="padding: 10px 12px; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.15s;"
+           onclick="selectGeocodeResult(${index})">
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="color: #3b82f6; font-size: 14px;"><i class="fas fa-map-marker-alt"></i></span>
           <div style="flex: 1; min-width: 0;">
             <div style="font-weight: 600; color: #1f2937; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${result.name}</div>
             <div style="color: #6b7280; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${result.display_name}</div>
           </div>
-          <span style="color: #9ca3af; font-size: 10px; flex-shrink: 0;">${result.source === 'nominatim' ? 'OSM' : result.source === 'baidu' ? '百度' : '坐标'}</span>
+          <span style="color: #9ca3af; font-size: 10px; flex-shrink: 0;">${sourceLabel}</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px; padding-left: 22px; flex-wrap: wrap;">
+          <span style="color: #9ca3af; font-size: 11px;"><i class="fas fa-crosshairs"></i> ${coordStr}</span>
+          <button type="button" onclick="event.stopPropagation(); selectGeocodeAsCoordinate(${index})"
+                  style="background: #f0fdf4; border: 1px solid #bbf7d0; color: #15803d; border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer;">
+            填入坐标
+          </button>
         </div>
       </div>
-    `).join('');
-    
+    `;
+    }).join('');
+
     resultsContainer._geocodeResults = results;
-    
+
     resultsContainer.querySelectorAll('.geocode-result-item').forEach(item => {
       item.addEventListener('mouseover', () => {
         item.style.background = '#f0f9ff';
@@ -2845,14 +3262,22 @@ async function searchGeocode(query) {
         item.style.background = '';
       });
     });
-    
+
   } catch (error) {
-    console.error('地理编码搜索失败:', error);
-    resultsContainer.innerHTML = '<div style="padding: 10px; text-align: center; color: #ef4444;">搜索失败，请重试</div>';
+    clearTimeout(timeoutId);
+    // 忽略过期的请求结果
+    if (currentRequestId !== geocodeRequestId) return;
+
+    if (error.name === 'AbortError') {
+      resultsContainer.innerHTML = '<div style="padding: 10px; text-align: center; color: #ef4444;">搜索超时，请重试</div>';
+    } else {
+      console.error('地理编码搜索失败:', error);
+      resultsContainer.innerHTML = '<div style="padding: 10px; text-align: center; color: #ef4444;">搜索失败，请重试</div>';
+    }
   }
 }
 
-// 选择地理编码结果
+// 选择地理编码结果（填入地点全名）
 function selectGeocodeResult(index) {
   const resultsContainer = document.getElementById('geocodeResults');
   const results = resultsContainer._geocodeResults;
@@ -2861,16 +3286,42 @@ function selectGeocodeResult(index) {
   const result = results[index];
   selectedGeocodeResult = result;
   
-  document.getElementById('attractionAddress').value = result.display_name || result.name;
+  document.getElementById('attractionAddress').value = result.name || result.display_name;
   document.getElementById('attractionLatitude').value = result.lat;
   document.getElementById('attractionLongitude').value = result.lng;
   
+  highlightGeocodeItem(index);
+  showNotification(`已填入名称: ${result.name}`, 'success');
+}
+
+// 选择地理编码结果（填入经纬度坐标）
+function selectGeocodeAsCoordinate(index) {
+  const resultsContainer = document.getElementById('geocodeResults');
+  const results = resultsContainer._geocodeResults;
+  if (!results || !results[index]) return;
+  
+  const result = results[index];
+  selectedGeocodeResult = result;
+  
+  const lat = typeof result.lat === 'number' ? result.lat : parseFloat(result.lat);
+  const lng = typeof result.lng === 'number' ? result.lng : parseFloat(result.lng);
+  const coordStr = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  
+  document.getElementById('attractionAddress').value = coordStr;
+  document.getElementById('attractionLatitude').value = result.lat;
+  document.getElementById('attractionLongitude').value = result.lng;
+  
+  highlightGeocodeItem(index);
+  showNotification(`已填入坐标: ${coordStr}`, 'success');
+}
+
+// 高亮选中的搜索结果项
+function highlightGeocodeItem(index) {
+  const resultsContainer = document.getElementById('geocodeResults');
   resultsContainer.querySelectorAll('.geocode-result-item').forEach((item, i) => {
     item.style.background = i === index ? '#dbeafe' : '';
     item.style.borderLeft = i === index ? '3px solid #3b82f6' : '';
   });
-  
-  showNotification(`已选择: ${result.name}`, 'success');
 }
 
 // 触发地理编码搜索（带防抖）
