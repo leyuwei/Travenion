@@ -1800,7 +1800,110 @@ function sharePlan() {
   
   // 加载用户列表和已分享用户
   loadUsersForSharing();
+  // 加载公开分享状态
+  loadPublicShareStatus();
   openModal('shareModal');
+}
+
+// 加载公开分享状态
+async function loadPublicShareStatus() {
+  const section = document.getElementById('publicShareSection');
+  if (!section) return;
+
+  // 检查currentPlan是否已有shareToken字段
+  if (currentPlan && currentPlan.shareToken) {
+    renderPublicShareEnabled(currentPlan.shareToken);
+  } else {
+    renderPublicShareDisabled();
+  }
+}
+
+// 渲染：未开启公开分享
+function renderPublicShareDisabled() {
+  const section = document.getElementById('publicShareSection');
+  section.innerHTML = `
+    <div style="text-align: center; padding: 10px;">
+      <button class="btn btn-primary" onclick="enablePublicShare()" style="width: 100%;">
+        <i class="fas fa-link"></i> 生成公开分享链接
+      </button>
+    </div>`;
+}
+
+// 渲染：已开启公开分享
+function renderPublicShareEnabled(token) {
+  const section = document.getElementById('publicShareSection');
+  const shareUrl = `${location.origin}/travenion/shared/${token}`;
+  section.innerHTML = `
+    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px;">
+      <input type="text" id="publicShareUrl" class="form-control" value="${shareUrl}" readonly
+        style="flex: 1; font-size: 13px; background: #f8fafc;" onclick="this.select();">
+      <button class="btn btn-primary" onclick="copyPublicShareLink()" title="复制链接" style="white-space: nowrap;">
+        <i class="fas fa-copy"></i> 复制
+      </button>
+    </div>
+    <div style="display: flex; gap: 8px; align-items: center;">
+      <a href="${shareUrl}" target="_blank" class="btn btn-outline" style="flex: 1; text-align: center; font-size: 13px;">
+        <i class="fas fa-external-link-alt"></i> 在新窗口预览
+      </a>
+      <button class="btn btn-outline" onclick="disablePublicShare()" title="撤销分享"
+        style="color: #ef4444; border-color: #fca5a5; white-space: nowrap;">
+        <i class="fas fa-trash"></i> 撤销分享
+      </button>
+    </div>`;
+}
+
+// 生成公开分享链接
+async function enablePublicShare() {
+  try {
+    const response = await fetch(`/travenion/api/plans/${planId}/public-share`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+    });
+    if (response.ok) {
+      const data = await response.json();
+      currentPlan.shareToken = data.shareToken;
+      renderPublicShareEnabled(data.shareToken);
+      showNotification('公开分享链接已生成', 'success');
+    } else {
+      const err = await response.json();
+      showNotification(err.message || '生成失败', 'error');
+    }
+  } catch (error) {
+    showNotification('生成公开分享链接失败', 'error');
+  }
+}
+
+// 撤销公开分享
+async function disablePublicShare() {
+  if (!confirm('确定要撤销公开分享吗？撤销后已分享的链接将失效。')) return;
+  try {
+    const response = await fetch(`/travenion/api/plans/${planId}/public-share`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+    });
+    if (response.ok) {
+      currentPlan.shareToken = null;
+      renderPublicShareDisabled();
+      showNotification('已撤销公开分享', 'success');
+    } else {
+      showNotification('撤销失败', 'error');
+    }
+  } catch (error) {
+    showNotification('撤销公开分享失败', 'error');
+  }
+}
+
+// 复制公开分享链接
+function copyPublicShareLink() {
+  const input = document.getElementById('publicShareUrl');
+  input.select();
+  input.setSelectionRange(0, 99999);
+  try {
+    document.execCommand('copy');
+    showNotification('链接已复制到剪贴板', 'success');
+  } catch (e) {
+    showNotification('复制失败，请手动复制', 'error');
+  }
 }
 
 // 加载用户列表用于分享
@@ -2673,33 +2776,146 @@ if (!localStorage.getItem('token')) {
 
 // ==================== AI规划功能 ====================
 
+// 导出当前行程为结构化JSON（供AI完善使用）
+function exportCurrentItinerary() {
+  const sorted = [...days].sort((a, b) => a.dayIndex - b.dayIndex);
+  return {
+    title: currentPlan ? (currentPlan.title || '') : '',
+    description: currentPlan ? (currentPlan.description || '') : '',
+    days: sorted.map(d => ({
+      dayIndex: d.dayIndex,
+      date: d.date || '',
+      city: d.city || '',
+      transportation: d.transportation || '',
+      attractions: (d.attractionsList || []).map(a => {
+        const item = {
+          name: a.name || '',
+          address: a.address || '',
+          description: a.description || '',
+          estimatedDuration: a.estimatedDuration || null
+        };
+        if (a.notes) item.notes = a.notes;
+        if (a.latitude) item.latitude = parseFloat(a.latitude);
+        if (a.longitude) item.longitude = parseFloat(a.longitude);
+        return item;
+      })
+    }))
+  };
+}
+
 // 生成AI规划提示词
 function generateAIPrompt() {
   const planTitle = currentPlan ? (currentPlan.title || '旅行计划') : '旅行计划';
   const planDesc = currentPlan ? (currentPlan.description || '') : '';
-  const existingDays = days && days.length > 0 ? days.length : 0;
+  const hasExisting = days && days.length > 0;
 
-  let existingInfo = '';
-  if (existingDays > 0) {
-    const sorted = [...days].sort((a, b) => a.dayIndex - b.dayIndex);
-    existingInfo = '\n\n## 已有行程（可参考或覆盖）\n';
-    sorted.forEach(d => {
-      const attractions = (d.attractionsList || []).map(a => a.name).join('、');
-      existingInfo += `- 第${d.dayIndex}天 ${d.city || ''}：${attractions || '（暂无景点）'}\n`;
-    });
-  }
+  // 通用规划规范（两个模式共用）
+  const rules = `
+## 规划规范（务必严格遵守）
 
-  const prompt = `你是一位专业的旅行规划师。请为以下旅行计划生成详细的行程安排。
+### 行程闭环
+- 每一天的行程必须以**酒店或交通枢纽（机场/车站）**作为起点和终点，形成闭环
+- **第1天**：以到达交通枢纽（机场/火车站）为起点，如果时间允许先去酒店放行李，再开始游览；最后返回酒店
+- **中间天数**：以酒店为起点，游览结束后返回酒店
+- **最后1天**：从酒店出发，游览后退房，前往交通枢纽结束
+- 每天的起点和终点景点请用 notes 字段标注，如 "notes": "起点-酒店" 或 "notes": "终点-返回酒店"
+
+### 精确地址
+- 每个景点必须提供**精确的当地语言地址**（中文行程用中文地址、日本行程用日文地址等）
+- 地址格式应包含：国家/地区 + 省/都道府县 + 市/区 + 详细门牌号
+- 示例：「东京都台东区浅草2-3-1」「北京市东城区景山前街4号」
+- 酒店和交通枢纽也需要精确地址，不能只写名称
+
+### 路线优化
+- **禁止走回头路**：每天的景点按地理位置就近排列，形成顺畅的游览动线
+- **禁止重复景点**：整个行程中不要安排重复的景点，即使不同天也不行
+- 合理估算每个景点间的交通时间，避免一天安排过多景点
+
+### 合理安排
+- 根据景点开放时间安排（如博物馆通常周一闭馆）
+- 考虑用餐时间，可在合适位置安排餐厅
+- 首日和末日考虑交通耗时，游览安排从简`;
+
+  if (hasExisting) {
+    // ===== 模式一：已有行程 → 导出给AI做增量完善 =====
+    const exported = exportCurrentItinerary();
+    const exportedJSON = JSON.stringify(exported, null, 2);
+
+    const prompt = `你是一位专业的旅行规划师。我有一份已有的旅行行程，请你在此基础上进行完善和优化。
+
+## 当前行程数据（JSON格式）
+\`\`\`json
+${exportedJSON}
+\`\`\`
+${rules}
+
+## 完善要求
+1. **补全闭环**：为每天补充起点和终点（酒店/交通枢纽），使行程形成闭环
+2. **补充地址**：为每个缺少精确地址的景点补全当地详细地址
+3. **补全信息**：为缺少 description 的景点添加简短描述，为缺少 estimatedDuration 的景点补充游览时长
+4. **检查路线**：如果发现走回头路或重复景点，请调整顺序或替换
+5. **保留现有**：不要删除已有的合理景点，只做优化和补充
+${planDesc ? `\n## 已知需求\n${planDesc}\n` : ''}
+## 输出格式（严格遵循，必须输出完整JSON，不要输出任何其他内容）
+输出完善后的**完整**行程（包含原有和新增的所有内容），格式如下：
+\`\`\`json
+{
+  "days": [
+    {
+      "dayIndex": 1,
+      "date": "2024-01-01",
+      "city": "东京",
+      "transportation": "地铁+步行",
+      "attractions": [
+        {
+          "name": "成田国际机场",
+          "address": "千叶县成田市古込字古込1-1",
+          "description": "到达机场，办理入境",
+          "estimatedDuration": 60,
+          "notes": "起点-交通枢纽"
+        },
+        {
+          "name": "新宿格拉斯丽酒店",
+          "address": "东京都新宿区西新宿1-23-7",
+          "description": "放行李后出发游览",
+          "estimatedDuration": 30,
+          "notes": "中转-放行李"
+        },
+        {
+          "name": "浅草寺",
+          "address": "东京都台东区浅草2-3-1",
+          "description": "东京最古老的寺庙",
+          "estimatedDuration": 90
+        },
+        {
+          "name": "新宿格拉斯丽酒店",
+          "address": "东京都新宿区西新宿1-23-7",
+          "description": "返回酒店休息",
+          "estimatedDuration": 0,
+          "notes": "终点-返回酒店"
+        }
+      ]
+    }
+  ]
+}
+\`\`\`
+
+## 注意事项
+- 输出完整的行程数据，不要省略未修改的部分
+- date 为 YYYY-MM-DD 格式，不确定可留空字符串 ""
+- estimatedDuration 为整数分钟（交通枢纽/酒店中转可设为 0）
+- 只输出JSON，不要输出任何解释`;
+
+    document.getElementById('aiPromptText').value = prompt;
+    showNotification('已生成基于当前行程的完善提示词', 'success');
+  } else {
+    // ===== 模式二：无行程 → 从零生成 =====
+    const prompt = `你是一位专业的旅行规划师。请为以下旅行计划生成详细的行程安排。
 
 ## 旅行计划信息
 - 标题：${planTitle}
-- 描述：${planDesc || '（无）'}${existingInfo}
-
-## 要求
-1. 为每一天规划合理的游览路线，景点按地理位置就近排列
-2. 每个景点提供准确的中文名称、地址
-3. 估算每个景点的游览时长（分钟）
-4. 给出每天的交通方式建议
+- 描述：${planDesc || '（无，请根据标题合理规划）'}
+${rules}
 
 ## 输出格式（严格遵循，必须输出合法JSON，不要输出任何其他内容）
 \`\`\`json
@@ -2709,33 +2925,67 @@ function generateAIPrompt() {
       "dayIndex": 1,
       "date": "2024-01-01",
       "city": "东京",
-      "transportation": "地铁",
+      "transportation": "地铁+步行",
       "attractions": [
+        {
+          "name": "成田国际机场",
+          "address": "千叶县成田市古込字古込1-1",
+          "description": "到达机场，办理入境手续",
+          "estimatedDuration": 60,
+          "notes": "起点-交通枢纽"
+        },
+        {
+          "name": "新宿格拉斯丽酒店",
+          "address": "东京都新宿区西新宿1-23-7",
+          "description": "入住酒店，放行李",
+          "estimatedDuration": 30,
+          "notes": "中转-酒店放行李"
+        },
         {
           "name": "浅草寺",
           "address": "东京都台东区浅草2-3-1",
-          "description": "东京最古老的寺庙",
-          "estimatedDuration": 90,
-          "notes": "建议上午前往避开人流"
+          "description": "东京最古老的寺庙，参观雷门和仲见世通",
+          "estimatedDuration": 90
         },
         {
           "name": "东京塔",
           "address": "东京都港区芝公园4-2-8",
-          "description": "东京地标建筑",
+          "description": "东京地标建筑，登塔俯瞰夜景",
           "estimatedDuration": 60
+        },
+        {
+          "name": "新宿格拉斯丽酒店",
+          "address": "东京都新宿区西新宿1-23-7",
+          "description": "返回酒店休息",
+          "estimatedDuration": 0,
+          "notes": "终点-返回酒店"
         }
       ]
     },
     {
       "dayIndex": 2,
-      "city": "横滨",
-      "transportation": "JR线",
+      "city": "东京",
+      "transportation": "地铁+步行",
       "attractions": [
         {
-          "name": "横滨港未来21",
-          "address": "神奈川县横滨市西区",
-          "description": "海滨公园",
-          "estimatedDuration": 120
+          "name": "新宿格拉斯丽酒店",
+          "address": "东京都新宿区西新宿1-23-7",
+          "description": "从酒店出发",
+          "estimatedDuration": 0,
+          "notes": "起点-酒店出发"
+        },
+        {
+          "name": "明治神宫",
+          "address": "东京都涩谷区代代木神园町1-1",
+          "description": "东京最大的神社，森林步道",
+          "estimatedDuration": 75
+        },
+        {
+          "name": "新宿格拉斯丽酒店",
+          "address": "东京都新宿区西新宿1-23-7",
+          "description": "返回酒店",
+          "estimatedDuration": 0,
+          "notes": "终点-返回酒店"
         }
       ]
     }
@@ -2746,11 +2996,13 @@ function generateAIPrompt() {
 ## 注意事项
 - dayIndex 从1开始递增
 - date 为 YYYY-MM-DD 格式，若不确定可留空字符串 ""
-- attractions 数组每项至少包含 name 和 address
-- estimatedDuration 为整数分钟
+- 每个景点必须包含 name 和精确的 address（当地语言详细地址）
+- estimatedDuration 为整数分钟（酒店/交通枢纽中转可设为 0）
 - 只输出JSON，不要输出任何解释、前言或后语`;
 
-  document.getElementById('aiPromptText').value = prompt;
+    document.getElementById('aiPromptText').value = prompt;
+  }
+
   openModal('aiPromptModal');
 }
 
@@ -2867,6 +3119,19 @@ function previewAIImport() {
     </div>`;
   }).join('');
 
+  // 分析智能合并预览（当已有行程时）
+  let mergePreview = '';
+  const modeInput = document.querySelector('input[name="aiImportMode"]:checked');
+  const currentMode = modeInput ? modeInput.value : 'merge';
+  if (currentMode === 'merge' && days && days.length > 0) {
+    const existingIndices = new Set(days.map(d => d.dayIndex));
+    const newDays = data.days.filter(d => !existingIndices.has(parseInt(d.dayIndex)));
+    const updateDays = data.days.filter(d => existingIndices.has(parseInt(d.dayIndex)));
+    mergePreview = `<div style="margin-top: 8px; padding: 6px 10px; background: #ecfdf5; border-radius: 6px; font-size: 12px; color: #065f46;">
+      <i class="fas fa-code-branch"></i> 合并预览：更新${updateDays.length}天已有行程，新增${newDays.length}天行程
+    </div>`;
+  }
+
   previewDiv.style.display = 'block';
   previewDiv.innerHTML = `
     <div style="padding: 12px; background: #f0f9ff; border: 1px solid #93c5fd; border-radius: 8px;">
@@ -2875,7 +3140,8 @@ function previewAIImport() {
         共 <strong>${data.days.length}</strong> 天，<strong>${totalAttractions}</strong> 个景点
         ${missingCoord > 0 ? `<br><span style="color: #d97706; font-size: 12px;"><i class="fas fa-info-circle"></i> ${missingCoord}个景点缺少坐标，导入时将自动搜索补全</span>` : ''}
       </div>
-      <div>${daysHtml}</div>
+      ${mergePreview}
+      <div style="margin-top: 8px;">${daysHtml}</div>
     </div>`;
   statusDiv.style.display = 'none';
 }
@@ -2935,13 +3201,24 @@ async function executeAIImport() {
     return;
   }
 
+  // 获取用户选择的导入模式
+  const modeInput = document.querySelector('input[name="aiImportMode"]:checked');
+  const mode = modeInput ? modeInput.value : 'merge';
+
+  // 全部替换模式需要二次确认
+  if (mode === 'replace' && days && days.length > 0) {
+    if (!confirm(`确定要删除现有的 ${days.length} 天行程并全部替换吗？此操作不可撤销。`)) {
+      return;
+    }
+  }
+
   const btnText = document.getElementById('aiImportBtnText');
   const statusDiv = document.getElementById('aiImportStatus');
   btnText.style.display = 'none';
   btnText.parentElement.querySelector('.loading').style.display = 'inline-block';
 
   try {
-    // 先统计需要补全坐标的景点数
+    // 统计需要补全坐标的景点
     let enrichmentCount = 0;
     let totalAttractions = 0;
     for (const day of data.days) {
@@ -2954,83 +3231,34 @@ async function executeAIImport() {
 
     statusDiv.style.display = 'block';
 
-    // 第一步：补全坐标（带进度）
+    // 第一步：补全缺失坐标
     if (enrichmentCount > 0) {
       let done = 0;
-      statusDiv.innerHTML = `<div style="padding:10px; background:#fef3c7; border:1px solid #fcd34d; border-radius:8px; font-size:13px;">
-        <i class="fas fa-spinner fa-spin"></i> 正在搜索并补全坐标 (${done}/${enrichmentCount})...
-      </div>`;
+      statusDiv.innerHTML = makeStatusBox('#fef3c7', '#fcd34d', `正在搜索并补全坐标 (${done}/${enrichmentCount})...`);
 
       for (const day of data.days) {
         for (const a of (day.attractions || [])) {
           if (!a.latitude || !a.longitude) {
             await enrichAttractionWithGeocode(a);
             done++;
-            statusDiv.innerHTML = `<div style="padding:10px; background:#fef3c7; border:1px solid #fcd34d; border-radius:8px; font-size:13px;">
-              <i class="fas fa-spinner fa-spin"></i> 正在搜索并补全坐标 (${done}/${enrichmentCount})...
-            </div>`;
+            statusDiv.innerHTML = makeStatusBox('#fef3c7', '#fcd34d', `正在搜索并补全坐标 (${done}/${enrichmentCount})...`);
           }
         }
       }
     }
 
-    // 第二步：逐天创建行程和景点
-    let dayDone = 0;
-    const totalDays = data.days.length;
-    statusDiv.innerHTML = `<div style="padding:10px; background:#dbeafe; border:1px solid #93c5fd; border-radius:8px; font-size:13px;">
-      <i class="fas fa-spinner fa-spin"></i> 正在创建行程 (${dayDone}/${totalDays})...
-    </div>`;
-
-    for (const day of data.days) {
-      // 创建行程日
-      const dayBody = {
-        dayIndex: parseInt(day.dayIndex) || (dayDone + 1),
-        date: day.date || null,
-        city: day.city || '未指定',
-        transportation: day.transportation || ''
-      };
-      const dayResp = await fetch(`/travenion/api/plans/${planId}/days`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(dayBody)
-      });
-      if (!dayResp.ok) throw new Error('创建行程日失败');
-      const dayData = await dayResp.json();
-      const newDayId = dayData.id;
-
-      // 逐个创建景点
-      for (const a of (day.attractions || [])) {
-        const aBody = {
-          name: a.name || '未命名景点',
-          address: a.address || '',
-          description: a.description || '',
-          estimatedDuration: a.estimatedDuration ? parseInt(a.estimatedDuration) : null,
-          notes: a.notes || ''
-        };
-        if (a.latitude && !isNaN(parseFloat(a.latitude))) aBody.latitude = parseFloat(a.latitude);
-        if (a.longitude && !isNaN(parseFloat(a.longitude))) aBody.longitude = parseFloat(a.longitude);
-        await fetch(`/travenion/api/attractions/day/${newDayId}`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(aBody)
-        });
-      }
-
-      dayDone++;
-      statusDiv.innerHTML = `<div style="padding:10px; background:#dbeafe; border:1px solid #93c5fd; border-radius:8px; font-size:13px;">
-        <i class="fas fa-spinner fa-spin"></i> 正在创建行程 (${dayDone}/${totalDays})...
-      </div>`;
+    // 第二步：根据模式执行导入
+    let result;
+    if (mode === 'replace') {
+      result = await replaceAllAIImport(data.days, statusDiv);
+    } else if (mode === 'append') {
+      result = await appendAIImport(data.days, statusDiv);
+    } else {
+      result = await smartMergeAIImport(data.days, statusDiv);
     }
 
-    statusDiv.innerHTML = `<div style="padding:10px; background:#d1fae5; border:1px solid #6ee7b7; border-radius:8px; font-size:13px;">
-      <i class="fas fa-check-circle"></i> 导入成功！共创建 ${totalDays} 天行程，${totalAttractions} 个景点。
-    </div>`;
+    statusDiv.innerHTML = makeStatusBox('#d1fae5', '#6ee7b7',
+      `<i class="fas fa-check-circle"></i> ${result.message}`);
 
     showNotification('AI规划导入成功', 'success');
     closeModal('aiImportModal');
@@ -3038,14 +3266,240 @@ async function executeAIImport() {
     loadMap();
   } catch (error) {
     console.error('AI导入失败:', error);
-    statusDiv.innerHTML = `<div style="padding:10px; background:#fef2f2; border:1px solid #fca5a5; border-radius:8px; font-size:13px; color:#b91c1c;">
-      <i class="fas fa-exclamation-circle"></i> 导入失败：${error.message}
-    </div>`;
+    statusDiv.innerHTML = makeStatusBox('#fef2f2', '#fca5a5',
+      `<i class="fas fa-exclamation-circle"></i> 导入失败：${error.message}`, true);
     showNotification('导入失败：' + error.message, 'error');
   } finally {
     btnText.style.display = 'inline';
     btnText.parentElement.querySelector('.loading').style.display = 'none';
   }
+}
+
+// 生成状态提示框HTML
+function makeStatusBox(bg, border, content, isError) {
+  return `<div style="padding:10px; background:${bg}; border:1px solid ${border}; border-radius:8px; font-size:13px;${isError ? ' color:#b91c1c;' : ''}">${content}</div>`;
+}
+
+// 获取认证请求头
+function authHeaders() {
+  return {
+    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+    'Content-Type': 'application/json'
+  };
+}
+
+// 构建景点请求体
+function buildAttractionBody(a) {
+  const body = {
+    name: a.name || '未命名景点',
+    address: a.address || '',
+    description: a.description || '',
+    estimatedDuration: a.estimatedDuration ? parseInt(a.estimatedDuration) : null,
+    notes: a.notes || ''
+  };
+  if (a.latitude && !isNaN(parseFloat(a.latitude))) body.latitude = parseFloat(a.latitude);
+  if (a.longitude && !isNaN(parseFloat(a.longitude))) body.longitude = parseFloat(a.longitude);
+  return body;
+}
+
+// 智能合并导入：按dayIndex匹配行程日，按景点名匹配景点
+async function smartMergeAIImport(aiDays, statusDiv) {
+  const token = localStorage.getItem('token');
+  let created = 0, updatedDays = 0, createdAttractions = 0, updatedAttractions = 0;
+
+  // 先重新加载当前days确保数据最新
+  await loadDays();
+  const existingByIndex = {};
+  for (const d of days) {
+    existingByIndex[d.dayIndex] = d;
+  }
+
+  const total = aiDays.length;
+  let done = 0;
+
+  for (const aiDay of aiDays) {
+    const dayIndex = parseInt(aiDay.dayIndex) || (done + 1);
+    statusDiv.innerHTML = makeStatusBox('#dbeafe', '#93c5fd',
+      `<i class="fas fa-spinner fa-spin"></i> 智能合并中 (${done}/${total})...`);
+
+    const existingDay = existingByIndex[dayIndex];
+
+    if (existingDay) {
+      // ===== 已有该天：更新 + 合并景点 =====
+      const updateBody = {};
+      let dayChanged = false;
+      if (aiDay.city && aiDay.city !== existingDay.city) { updateBody.city = aiDay.city; dayChanged = true; }
+      if (aiDay.date && aiDay.date !== existingDay.date) { updateBody.date = aiDay.date; dayChanged = true; }
+      if (aiDay.transportation && aiDay.transportation !== (existingDay.transportation || '')) {
+        updateBody.transportation = aiDay.transportation; dayChanged = true;
+      }
+      if (dayChanged) {
+        await fetch(`/travenion/api/plans/${planId}/days/${existingDay.id}`, {
+          method: 'PUT', headers: authHeaders(), body: JSON.stringify(updateBody)
+        });
+        updatedDays++;
+      }
+
+      // 合并景点：按名称模糊匹配
+      const existingAttractions = existingDay.attractionsList || [];
+      for (const aiAttr of (aiDay.attractions || [])) {
+        const matched = findMatchingAttraction(existingAttractions, aiAttr.name);
+        if (matched) {
+          // 更新已有景点
+          const updateA = {};
+          if (aiAttr.description && aiAttr.description !== (matched.description || '')) updateA.description = aiAttr.description;
+          if (aiAttr.address && aiAttr.address !== (matched.address || '')) updateA.address = aiAttr.address;
+          if (aiAttr.estimatedDuration && parseInt(aiAttr.estimatedDuration) !== matched.estimatedDuration) updateA.estimatedDuration = parseInt(aiAttr.estimatedDuration);
+          if (aiAttr.notes && aiAttr.notes !== (matched.notes || '')) updateA.notes = aiAttr.notes;
+          if (aiAttr.latitude && !matched.latitude) updateA.latitude = parseFloat(aiAttr.latitude);
+          if (aiAttr.longitude && !matched.longitude) updateA.longitude = parseFloat(aiAttr.longitude);
+
+          if (Object.keys(updateA).length > 0) {
+            await fetch(`/travenion/api/attractions/${matched.id}`, {
+              method: 'PUT', headers: authHeaders(), body: JSON.stringify(updateA)
+            });
+            updatedAttractions++;
+          }
+        } else {
+          // 新增景点
+          await fetch(`/travenion/api/attractions/day/${existingDay.id}`, {
+            method: 'POST', headers: authHeaders(), body: JSON.stringify(buildAttractionBody(aiAttr))
+          });
+          createdAttractions++;
+        }
+      }
+    } else {
+      // ===== 新天：创建 =====
+      const dayBody = {
+        dayIndex: dayIndex,
+        date: aiDay.date || null,
+        city: aiDay.city || '未指定',
+        transportation: aiDay.transportation || ''
+      };
+      const dayResp = await fetch(`/travenion/api/plans/${planId}/days`, {
+        method: 'POST', headers: authHeaders(), body: JSON.stringify(dayBody)
+      });
+      if (!dayResp.ok) throw new Error('创建行程日失败');
+      const newDayData = await dayResp.json();
+      const newDayId = newDayData.id;
+
+      for (const a of (aiDay.attractions || [])) {
+        await fetch(`/travenion/api/attractions/day/${newDayId}`, {
+          method: 'POST', headers: authHeaders(), body: JSON.stringify(buildAttractionBody(a))
+        });
+        createdAttractions++;
+      }
+      created++;
+    }
+
+    done++;
+  }
+
+  const parts = [];
+  if (created > 0) parts.push(`新增${created}天`);
+  if (updatedDays > 0) parts.push(`更新${updatedDays}天`);
+  if (createdAttractions > 0) parts.push(`新增${createdAttractions}个景点`);
+  if (updatedAttractions > 0) parts.push(`更新${updatedAttractions}个景点`);
+
+  return { message: `智能合并完成：${parts.join('，') || '无变化'}` };
+}
+
+// 全部替换导入
+async function replaceAllAIImport(aiDays, statusDiv) {
+  const token = localStorage.getItem('token');
+  // 删除所有现有行程日（景点会级联删除）
+  await loadDays();
+  for (const d of days) {
+    await fetch(`/travenion/api/plans/${planId}/days/${d.id}`, {
+      method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }
+    });
+  }
+
+  // 创建新行程
+  let totalAttractions = 0;
+  const total = aiDays.length;
+  let done = 0;
+
+  for (const day of aiDays) {
+    statusDiv.innerHTML = makeStatusBox('#dbeafe', '#93c5fd',
+      `<i class="fas fa-spinner fa-spin"></i> 正在创建行程 (${done + 1}/${total})...`);
+
+    const dayBody = {
+      dayIndex: parseInt(day.dayIndex) || (done + 1),
+      date: day.date || null,
+      city: day.city || '未指定',
+      transportation: day.transportation || ''
+    };
+    const dayResp = await fetch(`/travenion/api/plans/${planId}/days`, {
+      method: 'POST', headers: authHeaders(), body: JSON.stringify(dayBody)
+    });
+    if (!dayResp.ok) throw new Error('创建行程日失败');
+    const newDayId = (await dayResp.json()).id;
+
+    for (const a of (day.attractions || [])) {
+      await fetch(`/travenion/api/attractions/day/${newDayId}`, {
+        method: 'POST', headers: authHeaders(), body: JSON.stringify(buildAttractionBody(a))
+      });
+      totalAttractions++;
+    }
+    done++;
+  }
+
+  return { message: `全部替换完成：${total}天行程，${totalAttractions}个景点` };
+}
+
+// 仅追加导入
+async function appendAIImport(aiDays, statusDiv) {
+  await loadDays();
+  const maxIndex = days.length > 0 ? Math.max(...days.map(d => d.dayIndex)) : 0;
+
+  let totalAttractions = 0;
+  const total = aiDays.length;
+  let done = 0;
+
+  for (const day of aiDays) {
+    statusDiv.innerHTML = makeStatusBox('#dbeafe', '#93c5fd',
+      `<i class="fas fa-spinner fa-spin"></i> 正在追加行程 (${done + 1}/${total})...`);
+
+    const dayBody = {
+      dayIndex: maxIndex + done + 1,
+      date: day.date || null,
+      city: day.city || '未指定',
+      transportation: day.transportation || ''
+    };
+    const dayResp = await fetch(`/travenion/api/plans/${planId}/days`, {
+      method: 'POST', headers: authHeaders(), body: JSON.stringify(dayBody)
+    });
+    if (!dayResp.ok) throw new Error('创建行程日失败');
+    const newDayId = (await dayResp.json()).id;
+
+    for (const a of (day.attractions || [])) {
+      await fetch(`/travenion/api/attractions/day/${newDayId}`, {
+        method: 'POST', headers: authHeaders(), body: JSON.stringify(buildAttractionBody(a))
+      });
+      totalAttractions++;
+    }
+    done++;
+  }
+
+  return { message: `追加完成：新增${total}天行程，${totalAttractions}个景点` };
+}
+
+// 景点名称模糊匹配（用于智能合并）
+function findMatchingAttraction(existingAttractions, name) {
+  if (!name) return null;
+  const normalized = name.trim().toLowerCase().replace(/[\s\u3000（）()]/g, '');
+  // 精确匹配优先
+  let match = existingAttractions.find(a =>
+    (a.name || '').trim().toLowerCase().replace(/[\s\u3000（）()]/g, '') === normalized
+  );
+  if (match) return match;
+  // 包含匹配
+  match = existingAttractions.find(a => {
+    const an = (a.name || '').trim().toLowerCase().replace(/[\s\u3000（）()]/g, '');
+    return an.length > 0 && (an.includes(normalized) || normalized.includes(an));
+  });
+  return match || null;
 }
 
 // ==================== 景点管理功能 ====================

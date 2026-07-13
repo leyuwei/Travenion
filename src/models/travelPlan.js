@@ -11,6 +11,11 @@ module.exports = (sequelize, DataTypes) => {
     defaultMap: {
       type: DataTypes.ENUM('openstreetmap', 'baidu'),
       defaultValue: 'openstreetmap'
+    },
+    shareToken: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: '公开分享令牌，为null表示未公开分享'
     }
   });
   return TravelPlan;

@@ -263,12 +263,23 @@
   <div id="shareModal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
-        <h2 style="margin: 0;"><i class="fas fa-share-alt"></i> 分享给其他用户</h2>
+        <h2 style="margin: 0;"><i class="fas fa-share-alt"></i> 分享计划</h2>
         <button class="close" onclick="closeShareModal()">&times;</button>
       </div>
       <div class="modal-body">
+        <!-- 公开分享链接 -->
+        <div style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border-radius: 8px; border: 1px solid #93c5fd;">
+          <h4 style="margin: 0 0 10px 0; color: #1f2937;"><i class="fas fa-link" style="color: #3b82f6;"></i> 公开分享链接</h4>
+          <p style="font-size: 13px; color: #6b7280; margin: 0 0 12px 0;">生成链接后，任何人无需登录即可查看行程（仅限查看，不可修改，不可查看文件）。</p>
+          <div id="publicShareSection">
+            <!-- 动态内容 -->
+            <div class="loading-spinner" style="text-align: center; padding: 10px;">加载中...</div>
+          </div>
+        </div>
+
+        <!-- 分享给指定用户 -->
         <div style="margin-bottom: 20px;">
-          <h4 style="margin-bottom: 15px; color: #1f2937;">选择要分享的用户</h4>
+          <h4 style="margin-bottom: 15px; color: #1f2937;"><i class="fas fa-users"></i> 分享给指定用户</h4>
           <div id="usersList" style="max-height: 300px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px;">
             <div class="loading-spinner" style="text-align: center; padding: 20px;">加载用户列表...</div>
           </div>
@@ -418,6 +429,23 @@
         <div class="form-group">
           <label class="form-label">将AI返回的JSON粘贴到下方</label>
           <textarea id="aiImportText" class="form-control" rows="12" style="font-family: 'Courier New', monospace; font-size: 12px;" placeholder='在此粘贴AI返回的JSON，例如：&#10;{&#10;  "days": [&#10;    {&#10;      "dayIndex": 1,&#10;      "city": "东京",&#10;      "attractions": [&#10;        { "name": "浅草寺", "address": "东京都台东区浅草2-3-1" }&#10;      ]&#10;    }&#10;  ]&#10;}'></textarea>
+        </div>
+        <div class="form-group" id="aiImportModeGroup">
+          <label class="form-label">导入模式</label>
+          <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 13px;">
+              <input type="radio" name="aiImportMode" value="merge" checked>
+              <span><i class="fas fa-code-branch" style="color: #3b82f6;"></i> 智能合并 <span style="color:#9ca3af;font-size:11px;">（按天匹配，更新已有+新增缺失）</span></span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 13px;">
+              <input type="radio" name="aiImportMode" value="replace">
+              <span><i class="fas fa-sync-alt" style="color: #ef4444;"></i> 全部替换 <span style="color:#9ca3af;font-size:11px;">（删除现有行程，导入完整新行程）</span></span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 13px;">
+              <input type="radio" name="aiImportMode" value="append">
+              <span><i class="fas fa-plus-circle" style="color: #22c55e;"></i> 仅追加 <span style="color:#9ca3af;font-size:11px;">（保留现有，追加在末尾）</span></span>
+            </label>
+          </div>
         </div>
         <div id="aiImportPreview" style="display: none; margin-top: 15px;"></div>
         <div id="aiImportStatus" style="display: none;"></div>

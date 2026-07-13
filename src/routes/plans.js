@@ -8,7 +8,7 @@ const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
 
 // 分享页面路由（无需认证）
-// 获取分享的计划
+// 获取分享的计划（不包含文件，公开链接不可查看文件）
 router.get('/shared/:token', async (req, res) => {
   try {
     const { token } = req.params;
@@ -16,14 +16,17 @@ router.get('/shared/:token', async (req, res) => {
     // 通过分享令牌查找计划
     const plan = await TravelPlan.findOne({
       where: { shareToken: token },
-      include: ['days', 'files']
+      include: ['days']
     });
     
     if (!plan) {
       return res.status(404).json({ message: '计划不存在或已停止分享' });
     }
     
-    res.json(plan);
+    // 返回计划信息，但不包含文件
+    const planData = plan.toJSON();
+    delete planData.files;
+    res.json(planData);
   } catch (error) {
     console.error('获取分享计划失败:', error);
     res.status(500).json({ message: '获取分享计划失败' });
@@ -66,75 +69,17 @@ router.get('/shared/:token/days/:dayId/attractions', async (req, res) => {
     
     const day = await PlanDay.findOne({
       where: { id: dayId, planId: plan.id },
-      include: ['attractions']
+      include: ['attractionList']
     });
     
     if (!day) {
       return res.status(404).json({ message: '天数不存在' });
     }
     
-    res.json(day.attractions || []);
+    res.json(day.attractionList || []);
   } catch (error) {
     console.error('获取分享计划景点失败:', error);
     res.status(500).json({ message: '获取分享计划景点失败' });
-  }
-});
-
-// 获取分享计划的文件
-router.get('/shared/:token/files', async (req, res) => {
-  try {
-    const { token } = req.params;
-    
-    const plan = await TravelPlan.findOne({
-      where: { shareToken: token }
-    });
-    
-    if (!plan) {
-      return res.status(404).json({ message: '计划不存在或已停止分享' });
-    }
-    
-    const files = await PlanFile.findAll({
-      where: { planId: plan.id },
-      order: [['displayOrder', 'ASC'], ['createdAt', 'DESC']]
-    });
-    
-    res.json(files);
-  } catch (error) {
-    console.error('获取分享计划文件失败:', error);
-    res.status(500).json({ message: '获取分享计划文件失败' });
-  }
-});
-
-// 下载分享计划的文件
-router.get('/shared/:token/files/:fileId', async (req, res) => {
-  try {
-    const { token, fileId } = req.params;
-    
-    const plan = await TravelPlan.findOne({
-      where: { shareToken: token }
-    });
-    
-    if (!plan) {
-      return res.status(404).json({ message: '计划不存在或已停止分享' });
-    }
-    
-    const file = await PlanFile.findOne({
-      where: { id: fileId, planId: plan.id }
-    });
-    
-    if (!file) {
-      return res.status(404).json({ message: '文件未找到' });
-    }
-    
-    // 处理中文文件名编码，确保下载时文件名正确显示
-    const downloadFilename = file.originalName || file.filename;
-    const encodedFilename = encodeURIComponent(downloadFilename);
-    // 使用简化的Content-Disposition格式避免字符编码问题
-    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedFilename}`);
-    res.download(file.path, downloadFilename);
-  } catch (error) {
-    console.error('下载分享文件失败:', error);
-    res.status(500).json({ message: '下载分享文件失败' });
   }
 });
 
@@ -191,6 +136,47 @@ router.get('/', async (req, res) => {
     include: ['days', 'files']
   });
   res.json(plans);
+});
+
+const crypto = require('crypto');
+
+// 生成公开分享链接（仅计划所有者可操作）
+router.post('/:id/public-share', async (req, res) => {
+  try {
+    const plan = await TravelPlan.findOne({
+      where: { id: req.params.id, userId: req.user.id }
+    });
+    if (!plan) {
+      return res.status(404).json({ message: '未找到计划或无权限' });
+    }
+    // 已有token则复用，否则生成新的
+    if (!plan.shareToken) {
+      plan.shareToken = crypto.randomBytes(16).toString('hex');
+      await plan.save();
+    }
+    res.json({ shareToken: plan.shareToken });
+  } catch (error) {
+    console.error('生成公开分享链接失败:', error);
+    res.status(500).json({ message: '生成公开分享链接失败' });
+  }
+});
+
+// 撤销公开分享链接（仅计划所有者可操作）
+router.delete('/:id/public-share', async (req, res) => {
+  try {
+    const plan = await TravelPlan.findOne({
+      where: { id: req.params.id, userId: req.user.id }
+    });
+    if (!plan) {
+      return res.status(404).json({ message: '未找到计划或无权限' });
+    }
+    plan.shareToken = null;
+    await plan.save();
+    res.json({ message: '已撤销公开分享' });
+  } catch (error) {
+    console.error('撤销公开分享失败:', error);
+    res.status(500).json({ message: '撤销公开分享失败' });
+  }
 });
 
 router.post('/', async (req, res) => {

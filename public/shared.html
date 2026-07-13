@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>分享的旅行计划 - Travenion</title>
+  <base href="/travenion/">
+  <link rel="icon" href="logo.svg">
+  <link href="https://fonts.loli.net/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <link href="css/style.css" rel="stylesheet">
+</head>
+<body>
+  <div class="container">
+    <!-- 导航栏 -->
+    <nav class="navbar">
+      <a href="plans.html" class="brand">
+        <img src="logo.svg" alt="Travenion">
+        <span>Travenion</span>
+      </a>
+      <div style="align-items: center;">
+        <span style="background: #dbeafe; color: #3b82f6; padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 500;">
+          <i class="fas fa-eye"></i> 只读分享
+        </span>
+      </div>
+    </nav>
+
+    <!-- 加载状态 -->
+    <div id="loadingState" class="card fade-in" style="text-align: center; padding: 60px;">
+      <div class="loading-spinner" style="display: inline-block; width: 40px; height: 40px; border: 4px solid #e5e7eb; border-top-color: #3b82f6; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+      <p style="margin-top: 15px; color: #6b7280;">正在加载分享的计划...</p>
+    </div>
+
+    <!-- 错误状态 -->
+    <div id="errorState" class="card fade-in" style="display: none; text-align: center; padding: 60px;">
+      <div style="font-size: 3rem; margin-bottom: 15px;"> :(</div>
+      <h2 style="color: #1f2937;">计划不存在或已停止分享</h2>
+      <p style="color: #6b7280; margin-top: 10px;">该分享链接可能已失效，请联系分享者获取新的链接。</p>
+      <a href="plans.html" class="btn btn-primary" style="margin-top: 20px;">返回首页</a>
+    </div>
+
+    <!-- 计划内容 -->
+    <div id="planContent" style="display: none;">
+      <!-- 计划标题和信息 -->
+      <div class="card fade-in">
+        <div class="card-header">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div style="flex: 1;">
+              <h1 id="planTitle" class="card-title" style="margin-bottom: 10px;">加载中...</h1>
+              <p id="planDescription" style="color: #6b7280; margin: 0;"></p>
+            </div>
+            <div style="display: flex; gap: 15px; align-items: center;">
+              <div style="text-align: center;">
+                <div style="font-size: 1.5rem;">📅</div>
+                <div style="font-size: 12px; color: #6b7280;">总天数</div>
+                <div id="totalDays" style="font-weight: 600;">0</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 地图 -->
+      <div class="card fade-in" style="margin-top: 20px;">
+        <div class="card-header">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin: 0; color: #1f2937;"><i class="fas fa-map"></i> 行程地图</h3>
+            <div id="mapControls" style="display: flex; gap: 8px;"></div>
+          </div>
+        </div>
+        <div style="padding: 15px;">
+          <div id="map" style="height: 400px; border-radius: 8px; overflow: hidden;"></div>
+        </div>
+      </div>
+
+      <!-- 行程安排 -->
+      <div class="card fade-in" style="margin-top: 20px; margin-bottom: 20px;">
+        <div class="card-header">
+          <h3 style="margin: 0; color: #1f2937;"><i class="fas fa-route"></i> 行程安排</h3>
+        </div>
+        <div style="padding: 20px;">
+          <div id="dayList"></div>
+          <div id="emptyDays" style="display: none; text-align: center; padding: 40px; color: #6b7280;">
+            <div style="font-size: 3rem; margin-bottom: 10px;">🗓️</div>
+            <p>暂无行程安排</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/shared.js"></script>
+</body>
+</html>

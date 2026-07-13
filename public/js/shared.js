@@ -3,7 +3,6 @@ let shareToken = window.location.pathname.split('/').pop();
 let map, mapProvider = 'openstreetmap';
 let currentPlan = null;
 let days = [];
-let files = [];
 
 // 从配置文件获取默认地图提供商
 if (typeof window.MAP_CONFIG !== 'undefined' && window.MAP_CONFIG.DEFAULT_MAP_PROVIDER) {
@@ -166,11 +165,8 @@ async function loadSharedPlan() {
     // 显示计划信息
     displayPlan(data);
     
-    // 加载行程和文件
-    await Promise.all([
-      loadDays(),
-      loadFiles()
-    ]);
+    // 加载行程
+    await loadDays();
     
     // 加载地图
     await loadMap();
@@ -276,8 +272,8 @@ function renderDays() {
             <p style="margin: 0; color: #6b7280; font-size: 14px;">第${day.dayIndex}天 ${day.date ? formatDate(day.date) : ''}</p>
           </div>
         </div>
-        <div style="background: #f3f4f6; color: #6b7280; padding: 4px 8px; border-radius: 6px; font-size: 12px;">
-          可编辑
+        <div style="background: #dbeafe; color: #3b82f6; padding: 4px 8px; border-radius: 6px; font-size: 12px;">
+          <i class="fas fa-eye"></i> 只读
         </div>
       </div>
       
@@ -314,97 +310,9 @@ function renderDays() {
   }).join('');
 }
 
-// 加载文件数据
-async function loadFiles() {
-  try {
-    const response = await fetch(`/travenion/api/plans/shared/${shareToken}/files`);
-    if (response.ok) {
-      files = await response.json();
-      renderFiles();
-    }
-  } catch (error) {
-    console.error('加载文件失败:', error);
-  }
-}
-
-// 渲染文件列表
-function renderFiles() {
-  const container = document.getElementById('fileGrid');
-  const emptyState = document.getElementById('emptyFiles');
-  
-  if (files.length === 0) {
-    container.innerHTML = '';
-    emptyState.style.display = 'block';
-    return;
-  }
-  
-  emptyState.style.display = 'none';
-  
-  container.innerHTML = files.map(file => `
-    <div class="file-card" style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: transform 0.2s;">
-      <div style="text-align: center; margin-bottom: 15px;">
-        <div style="font-size: 2.5rem; margin-bottom: 10px;">${getFileIcon(file.filename)}</div>
-        <h4 style="margin: 0; font-size: 16px; color: #1f2937; word-break: break-word;" title="${file.filename}">${file.filename}</h4>
-        <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 12px;">
-          上传于 ${formatDate(file.created_at)}
-        </p>
-        ${file.description ? `<div style="margin-top: 8px; padding: 8px; background: #f8fafc; border-radius: 6px; font-size: 12px; color: #6b7280;">${file.description}</div>` : ''}
-      </div>
-      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-        <button class="btn btn-outline" onclick="downloadFile(${file.id})" style="flex: 1; min-width: 60px; font-size: 12px;" title="下载">下载</button>
-      </div>
-    </div>
-  `).join('');
-}
-
 // 更新统计信息
 function updateStatistics() {
   document.getElementById('totalDays').textContent = days.length;
-  document.getElementById('totalFiles').textContent = files.length;
-}
-
-// 下载文件
-async function downloadFile(fileId) {
-  try {
-    const response = await fetch(`/travenion/api/plans/shared/${shareToken}/files/${fileId}`);
-    
-    if (!response.ok) {
-      throw new Error('下载失败');
-    }
-    
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.style.display = 'none';
-    a.href = url;
-    
-    // 从响应头获取文件名
-    const contentDisposition = response.headers.get('content-disposition');
-    let filename = 'download';
-    if (contentDisposition) {
-      // 优先解析 filename*=UTF-8''... 格式（支持中文）
-      const filenameStarMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
-      if (filenameStarMatch) {
-        filename = decodeURIComponent(filenameStarMatch[1]);
-      } else {
-        // 回退到普通 filename="..." 格式
-        const filenameMatch = contentDisposition.match(/filename="(.+)"/i);
-        if (filenameMatch) {
-          filename = filenameMatch[1];
-        }
-      }
-    }
-    
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
-    
-  } catch (error) {
-    console.error('下载文件失败:', error);
-    showNotification('下载文件失败', 'error');
-  }
 }
 
 // 地图相关变量
@@ -816,4 +724,3 @@ document.addEventListener('DOMContentLoaded', () => {
 // 全局暴露函数供HTML调用
 window.switchMapProvider = switchMapProvider;
 window.refreshMap = refreshMap;
-window.downloadFile = downloadFile;

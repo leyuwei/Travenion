@@ -17,6 +17,11 @@ const app = express();
 app.use(express.json());
 app.use('/travenion', express.static(path.join(__dirname, '..', 'public')));
 
+// 公开分享页面路由 - 将 /travenion/shared/xxx 映射到 shared.html
+app.get('/travenion/shared/:token', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'shared.html'));
+});
+
 // Swagger UI 路由
 app.use('/travenion/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
   customCss: '.swagger-ui .topbar { display: none }',
