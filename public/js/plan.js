@@ -3304,7 +3304,6 @@ function buildAttractionBody(a) {
 
 // 智能合并导入：按dayIndex匹配行程日，按景点名匹配景点
 async function smartMergeAIImport(aiDays, statusDiv) {
-  const token = localStorage.getItem('token');
   let created = 0, updatedDays = 0, createdAttractions = 0, updatedAttractions = 0;
 
   // 先重新加载当前days确保数据最新
@@ -3340,12 +3339,16 @@ async function smartMergeAIImport(aiDays, statusDiv) {
         updatedDays++;
       }
 
-      // 合并景点：按名称模糊匹配
+      // 合并景点：按名称模糊匹配，记录已匹配的防止重复
       const existingAttractions = existingDay.attractionsList || [];
+      const usedIds = new Set(); // 记录已被匹配的已有景点ID
+      const orderedIds = []; // 按AI顺序排列的景点ID列表
+
       for (const aiAttr of (aiDay.attractions || [])) {
-        const matched = findMatchingAttraction(existingAttractions, aiAttr.name);
+        const matched = findMatchingAttraction(existingAttractions, aiAttr.name, usedIds);
         if (matched) {
-          // 更新已有景点
+          usedIds.add(matched.id);
+          // 更新已有景点内容（不在此处设visitOrder，最后统一修正）
           const updateA = {};
           if (aiAttr.description && aiAttr.description !== (matched.description || '')) updateA.description = aiAttr.description;
           if (aiAttr.address && aiAttr.address !== (matched.address || '')) updateA.address = aiAttr.address;
@@ -3360,13 +3363,25 @@ async function smartMergeAIImport(aiDays, statusDiv) {
             });
             updatedAttractions++;
           }
+          orderedIds.push(matched.id);
         } else {
           // 新增景点
-          await fetch(`/travenion/api/attractions/day/${existingDay.id}`, {
+          const createResp = await fetch(`/travenion/api/attractions/day/${existingDay.id}`, {
             method: 'POST', headers: authHeaders(), body: JSON.stringify(buildAttractionBody(aiAttr))
           });
+          if (createResp.ok) {
+            const newData = await createResp.json();
+            orderedIds.push(newData.id);
+          }
           createdAttractions++;
         }
+      }
+
+      // 统一修正visitOrder，使顺序与AI输出一致
+      for (let i = 0; i < orderedIds.length; i++) {
+        await fetch(`/travenion/api/attractions/${orderedIds[i]}`, {
+          method: 'PUT', headers: authHeaders(), body: JSON.stringify({ visitOrder: i + 1 })
+        });
       }
     } else {
       // ===== 新天：创建 =====
@@ -3486,16 +3501,19 @@ async function appendAIImport(aiDays, statusDiv) {
 }
 
 // 景点名称模糊匹配（用于智能合并）
-function findMatchingAttraction(existingAttractions, name) {
+function findMatchingAttraction(existingAttractions, name, usedIds) {
   if (!name) return null;
+  usedIds = usedIds || new Set();
   const normalized = name.trim().toLowerCase().replace(/[\s\u3000（）()]/g, '');
   // 精确匹配优先
   let match = existingAttractions.find(a =>
+    !usedIds.has(a.id) &&
     (a.name || '').trim().toLowerCase().replace(/[\s\u3000（）()]/g, '') === normalized
   );
   if (match) return match;
   // 包含匹配
   match = existingAttractions.find(a => {
+    if (usedIds.has(a.id)) return false;
     const an = (a.name || '').trim().toLowerCase().replace(/[\s\u3000（）()]/g, '');
     return an.length > 0 && (an.includes(normalized) || normalized.includes(an));
   });
@@ -3933,6 +3951,60 @@ function copyMainAttraction(dayId, attractionIndex) {
   updatePasteButtonsState();
 }
 
+// 创建复制按钮区域（用于导航选择器）
+function createCopyButtons(attractionName, attractionAddress) {
+  const container = document.createElement('div');
+  container.style.cssText = 'display:flex;gap:10px;margin-top:15px;padding-top:15px;border-top:1px solid #eee;';
+
+  // 复制名称
+  const copyNameBtn = document.createElement('button');
+  copyNameBtn.innerHTML = '<i class="fas fa-copy"></i> 复制名称';
+  copyNameBtn.style.cssText = 'flex:1;padding:12px;border:1px solid #e5e7eb;border-radius:8px;background:#f9fafb;color:#374151;font-size:14px;cursor:pointer;transition:all 0.2s ease;display:flex;align-items:center;justify-content:center;gap:6px;';
+  copyNameBtn.addEventListener('click', () => {
+    copyToClipboard(attractionName);
+    showNotification('已复制景点名称', 'success');
+  });
+  copyNameBtn.addEventListener('mouseover', () => { copyNameBtn.style.background = '#f3f4f6'; copyNameBtn.style.borderColor = '#d1d5db'; });
+  copyNameBtn.addEventListener('mouseout', () => { copyNameBtn.style.background = '#f9fafb'; copyNameBtn.style.borderColor = '#e5e7eb'; });
+  container.appendChild(copyNameBtn);
+
+  // 复制地址
+  if (attractionAddress) {
+    const copyAddrBtn = document.createElement('button');
+    copyAddrBtn.innerHTML = '<i class="fas fa-location-arrow"></i> 复制地址';
+    copyAddrBtn.style.cssText = 'flex:1;padding:12px;border:1px solid #e5e7eb;border-radius:8px;background:#f9fafb;color:#374151;font-size:14px;cursor:pointer;transition:all 0.2s ease;display:flex;align-items:center;justify-content:center;gap:6px;';
+    copyAddrBtn.addEventListener('click', () => {
+      copyToClipboard(attractionAddress);
+      showNotification('已复制景点地址', 'success');
+    });
+    copyAddrBtn.addEventListener('mouseover', () => { copyAddrBtn.style.background = '#f3f4f6'; copyAddrBtn.style.borderColor = '#d1d5db'; });
+    copyAddrBtn.addEventListener('mouseout', () => { copyAddrBtn.style.background = '#f9fafb'; copyAddrBtn.style.borderColor = '#e5e7eb'; });
+    container.appendChild(copyAddrBtn);
+  }
+
+  return container;
+}
+
+// 复制文本到剪贴板
+function copyToClipboard(text) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+  } else {
+    fallbackCopy(text);
+  }
+}
+
+function fallbackCopy(text) {
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  try { document.execCommand('copy'); } catch (e) {}
+  document.body.removeChild(textarea);
+}
+
 // 导航到景点功能
 function navigateToAttraction(attractionName, attractionAddress) {
   // 构建搜索查询，优先使用地址，如果没有地址则使用景点名称
@@ -3948,7 +4020,7 @@ function navigateToAttraction(attractionName, attractionAddress) {
     showNavigationSelector(attractionName, query, isIOS, isAndroid);
   } else {
     // PC端：显示导航选择器
-    showPCNavigationSelector(attractionName, query);
+    showPCNavigationSelector(attractionName, query, attractionAddress);
   }
 }
 
@@ -4169,6 +4241,7 @@ function showNavigationSelector(attractionName, query, isIOS, isAndroid) {
   content.appendChild(title);
   content.appendChild(info);
   content.appendChild(buttonContainer);
+  content.appendChild(createCopyButtons(attractionName, attractionAddress));
   content.appendChild(cancelButton);
   modal.appendChild(content);
   
@@ -4184,7 +4257,7 @@ function showNavigationSelector(attractionName, query, isIOS, isAndroid) {
 }
 
 // PC端导航选择器
-function showPCNavigationSelector(attractionName, query) {
+function showPCNavigationSelector(attractionName, query, attractionAddress) {
   // 创建模态框
   const modal = document.createElement('div');
   modal.style.cssText = `
@@ -4351,6 +4424,7 @@ function showPCNavigationSelector(attractionName, query) {
   content.appendChild(title);
   content.appendChild(info);
   content.appendChild(buttonContainer);
+  content.appendChild(createCopyButtons(attractionName, attractionAddress));
   content.appendChild(cancelButton);
   modal.appendChild(content);
   

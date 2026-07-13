@@ -244,7 +244,6 @@ function renderDays() {
   container.innerHTML = sortedDays.map(day => {
     const isToday = day.date === today;
     const isPast = day.date && day.date < today;
-    const isFuture = day.date && day.date > today;
     
     // 根据日期状态设置样式
     let cardStyle = 'margin-bottom: 15px; padding: 20px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);';
@@ -288,16 +287,29 @@ function renderDays() {
         <span style="color: #6b7280; font-size: 14px;">🎯 景点安排:</span>
         ${day.attractionsList && day.attractionsList.length > 0 ? `
           <div style="margin-top: 8px;">
-            ${day.attractionsList.map((attraction, index) => `
-              <div style="display: flex; align-items: center; padding: 8px; margin-bottom: 6px; background: #f8fafc; border-radius: 6px; border-left: 3px solid #3b82f6;">
+            ${day.attractionsList.map((attraction, index) => {
+              const canNavigate = attraction.address || attraction.name;
+              const dataAttrs = canNavigate
+                ? ` class="attraction-nav-item" data-name="${escapeHtml(attraction.name)}" data-address="${escapeHtml(attraction.address || '')}"`
+                : '';
+              return `
+              <div${dataAttrs} style="display: flex; align-items: center; padding: 8px; margin-bottom: 6px; background: #f8fafc; border-radius: 6px; border-left: 3px solid #3b82f6;">
                 <span style="background: #3b82f6; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 12px; margin-right: 10px; flex-shrink: 0;">${index + 1}</span>
                 <div style="flex: 1; min-width: 0;">
-                  <div style="font-weight: 500; color: #1f2937; margin-bottom: 2px;">${attraction.name}</div>
-                  ${attraction.description ? `<div style="color: #6b7280; font-size: 13px; margin-bottom: 2px;">${attraction.description}</div>` : ''}
-                  ${attraction.address ? `<div style="color: #9ca3af; font-size: 12px;"><i class="fas fa-map-marker-alt"></i> ${attraction.address}</div>` : ''}
+                  <div style="font-weight: 500; color: #1f2937; margin-bottom: 2px;">
+                    ${escapeHtml(attraction.name)}
+                    ${attraction.notes ? `<span style="font-size: 11px; color: #3b82f6; margin-left: 6px; font-weight: 400;">${escapeHtml(attraction.notes)}</span>` : ''}
+                  </div>
+                  ${attraction.description ? `<div style="color: #6b7280; font-size: 13px; margin-bottom: 2px;">${escapeHtml(attraction.description)}</div>` : ''}
+                  ${attraction.address ? `<div style="color: #9ca3af; font-size: 12px;"><i class="fas fa-map-marker-alt"></i> ${escapeHtml(attraction.address)}</div>` : ''}
                 </div>
-              </div>
-            `).join('')}
+                ${canNavigate ? `
+                  <div style="margin-left: 8px; flex-shrink: 0; background: #3b82f6; color: white; border-radius: 6px; padding: 6px 10px; font-size: 12px; white-space: nowrap;">
+                    <i class="fas fa-directions"></i> 导航
+                  </div>
+                ` : ''}
+              </div>`;
+            }).join('')}
           </div>
         ` : `
           <div style="margin-top: 5px; padding: 15px; background: #f8fafc; border-radius: 8px; text-align: center; color: #6b7280; font-style: italic;">
@@ -313,6 +325,228 @@ function renderDays() {
 // 更新统计信息
 function updateStatistics() {
   document.getElementById('totalDays').textContent = days.length;
+}
+
+// HTML转义
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// 创建复制按钮区域（用于导航选择器）
+function createCopyButtons(attractionName, attractionAddress) {
+  const container = document.createElement('div');
+  container.style.cssText = 'display:flex;gap:10px;margin-top:15px;padding-top:15px;border-top:1px solid #eee;';
+
+  const copyNameBtn = document.createElement('button');
+  copyNameBtn.innerHTML = '<i class="fas fa-copy"></i> 复制名称';
+  copyNameBtn.style.cssText = 'flex:1;padding:12px;border:1px solid #e5e7eb;border-radius:8px;background:#f9fafb;color:#374151;font-size:14px;cursor:pointer;transition:all 0.2s ease;display:flex;align-items:center;justify-content:center;gap:6px;';
+  copyNameBtn.addEventListener('click', () => {
+    copyToClipboard(attractionName);
+    showNotification('已复制景点名称', 'success');
+  });
+  copyNameBtn.addEventListener('mouseover', () => { copyNameBtn.style.background = '#f3f4f6'; copyNameBtn.style.borderColor = '#d1d5db'; });
+  copyNameBtn.addEventListener('mouseout', () => { copyNameBtn.style.background = '#f9fafb'; copyNameBtn.style.borderColor = '#e5e7eb'; });
+  container.appendChild(copyNameBtn);
+
+  if (attractionAddress) {
+    const copyAddrBtn = document.createElement('button');
+    copyAddrBtn.innerHTML = '<i class="fas fa-location-arrow"></i> 复制地址';
+    copyAddrBtn.style.cssText = 'flex:1;padding:12px;border:1px solid #e5e7eb;border-radius:8px;background:#f9fafb;color:#374151;font-size:14px;cursor:pointer;transition:all 0.2s ease;display:flex;align-items:center;justify-content:center;gap:6px;';
+    copyAddrBtn.addEventListener('click', () => {
+      copyToClipboard(attractionAddress);
+      showNotification('已复制景点地址', 'success');
+    });
+    copyAddrBtn.addEventListener('mouseover', () => { copyAddrBtn.style.background = '#f3f4f6'; copyAddrBtn.style.borderColor = '#d1d5db'; });
+    copyAddrBtn.addEventListener('mouseout', () => { copyAddrBtn.style.background = '#f9fafb'; copyAddrBtn.style.borderColor = '#e5e7eb'; });
+    container.appendChild(copyAddrBtn);
+  }
+
+  return container;
+}
+
+// 复制文本到剪贴板
+function copyToClipboard(text) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+  } else {
+    fallbackCopy(text);
+  }
+}
+
+function fallbackCopy(text) {
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  try { document.execCommand('copy'); } catch (e) {}
+  document.body.removeChild(textarea);
+}
+
+// 导航到景点功能（与主页面plan.js一致）
+function navigateToAttraction(attractionName, attractionAddress) {
+  // 构建搜索查询，优先使用地址，如果没有地址则使用景点名称
+  const query = attractionAddress || attractionName;
+
+  // 检测设备类型
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isAndroid = /Android/.test(navigator.userAgent);
+
+  if (isMobile) {
+    showNavigationSelector(attractionName, query, isIOS, isAndroid);
+  } else {
+    showPCNavigationSelector(attractionName, query, attractionAddress);
+  }
+}
+
+// 移动端导航应用选择器
+function showNavigationSelector(attractionName, query, isIOS, isAndroid) {
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;padding:20px;box-sizing:border-box;';
+
+  const content = document.createElement('div');
+  content.style.cssText = 'background:white;border-radius:12px;padding:20px;max-width:400px;width:100%;box-shadow:0 10px 30px rgba(0,0,0,0.3);';
+
+  const title = document.createElement('h3');
+  title.textContent = '选择导航应用';
+  title.style.cssText = 'margin:0 0 15px 0;color:#333;text-align:center;font-size:18px;';
+
+  const info = document.createElement('p');
+  info.textContent = `导航到: ${attractionName}`;
+  info.style.cssText = 'margin:0 0 20px 0;color:#666;text-align:center;font-size:14px;';
+
+  const buttonContainer = document.createElement('div');
+  buttonContainer.style.cssText = 'display:flex;flex-direction:column;gap:10px;';
+
+  const navigationOptions = [];
+
+  if (isIOS) {
+    navigationOptions.push(
+      { name: 'Apple 地图', icon: '🗺️', url: `maps://maps.apple.com/?q=${encodeURIComponent(query)}&dirflg=d`, color: '#007AFF' },
+      { name: 'Google 地图', icon: '🌍', url: `comgooglemaps://?q=${encodeURIComponent(query)}&directionsmode=driving`, fallback: `https://maps.google.com/maps?q=${encodeURIComponent(query)}&navigate=yes`, color: '#4285F4' },
+      { name: '高德地图', icon: '🧭', url: `iosamap://path?sourceApplication=Travenion&dname=${encodeURIComponent(attractionName)}&dlat=&dlon=&dev=0&t=0`, fallback: `https://uri.amap.com/navigation?to=${encodeURIComponent(query)}`, color: '#00C853' },
+      { name: '百度地图', icon: '📍', url: `baidumap://map/direction?destination=name:${encodeURIComponent(attractionName)}&mode=driving&src=Travenion`, fallback: `https://map.baidu.com/?qt=nav&tn=H_APP&c=1&sc=1&ec=1&sn=0&en=0&rn=${encodeURIComponent(query)}`, color: '#3F51B5' }
+    );
+  } else if (isAndroid) {
+    navigationOptions.push(
+      { name: 'Google 地图', icon: '🌍', url: `google.navigation:q=${encodeURIComponent(query)}`, fallback: `https://maps.google.com/maps?q=${encodeURIComponent(query)}&navigate=yes`, color: '#4285F4' },
+      { name: '高德地图', icon: '🧭', url: `androidamap://path?sourceApplication=Travenion&dname=${encodeURIComponent(attractionName)}&dlat=&dlon=&dev=0&t=0`, fallback: `https://uri.amap.com/navigation?to=${encodeURIComponent(query)}`, color: '#00C853' },
+      { name: '百度地图', icon: '📍', url: `baidumap://map/direction?destination=name:${encodeURIComponent(attractionName)}&mode=driving&src=Travenion`, fallback: `https://map.baidu.com/?qt=nav&tn=H_APP&c=1&sc=1&ec=1&sn=0&en=0&rn=${encodeURIComponent(query)}`, color: '#3F51B5' }
+    );
+  }
+
+  navigationOptions.push({ name: '网页版地图', icon: '💻', url: `https://maps.google.com/maps?q=${encodeURIComponent(query)}&navigate=yes`, color: '#757575' });
+
+  navigationOptions.forEach(option => {
+    const button = document.createElement('button');
+    button.innerHTML = `${option.icon} ${option.name}`;
+    button.style.cssText = 'padding:15px;border:none;border-radius:8px;background:' + option.color + ';color:white;font-size:16px;cursor:pointer;transition:all 0.2s ease;display:flex;align-items:center;justify-content:center;gap:8px;';
+
+    button.addEventListener('click', () => {
+      document.body.removeChild(modal);
+      if (option.fallback) {
+        let appOpened = false;
+        const handleVisibilityChange = () => { if (document.hidden) appOpened = true; };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.location.href = option.url;
+        setTimeout(() => {
+          document.removeEventListener('visibilitychange', handleVisibilityChange);
+          if (!appOpened) window.open(option.fallback, '_blank');
+        }, 2000);
+      } else {
+        if (option.url.startsWith('http')) window.open(option.url, '_blank');
+        else window.location.href = option.url;
+      }
+    });
+
+    button.addEventListener('mouseover', () => { button.style.opacity = '0.8'; });
+    button.addEventListener('mouseout', () => { button.style.opacity = '1'; });
+    buttonContainer.appendChild(button);
+  });
+
+  const cancelButton = document.createElement('button');
+  cancelButton.textContent = '取消';
+  cancelButton.style.cssText = 'padding:15px;border:1px solid #ddd;border-radius:8px;background:white;color:#666;font-size:16px;cursor:pointer;margin-top:10px;';
+  cancelButton.addEventListener('click', () => { document.body.removeChild(modal); });
+
+  content.appendChild(title);
+  content.appendChild(info);
+  content.appendChild(buttonContainer);
+  content.appendChild(createCopyButtons(attractionName, attractionAddress));
+  content.appendChild(cancelButton);
+  modal.appendChild(content);
+
+  modal.addEventListener('click', (e) => { if (e.target === modal) document.body.removeChild(modal); });
+  document.body.appendChild(modal);
+}
+
+// PC端导航选择器
+function showPCNavigationSelector(attractionName, query, attractionAddress) {
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;padding:20px;box-sizing:border-box;';
+
+  const content = document.createElement('div');
+  content.style.cssText = 'background:white;border-radius:12px;padding:20px;max-width:500px;width:100%;box-shadow:0 10px 30px rgba(0,0,0,0.3);';
+
+  const title = document.createElement('h3');
+  title.textContent = '选择导航服务';
+  title.style.cssText = 'margin:0 0 15px 0;color:#333;text-align:center;font-size:18px;';
+
+  const info = document.createElement('p');
+  info.textContent = `导航到: ${attractionName}`;
+  info.style.cssText = 'margin:0 0 20px 0;color:#666;text-align:center;font-size:14px;';
+
+  const buttonContainer = document.createElement('div');
+  buttonContainer.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;';
+
+  const navigationOptions = [
+    { name: 'Google 地图', icon: '🌍', url: `https://maps.google.com/maps?q=${encodeURIComponent(query)}&navigate=yes`, color: '#4285F4', description: '全球覆盖，路况实时' },
+    { name: '高德地图', icon: '🧭', url: `https://uri.amap.com/navigation?to=${encodeURIComponent(query)}`, color: '#00C853', description: '国内精准，路况详细' },
+    { name: '百度地图', icon: '📍', url: `https://map.baidu.com/?qt=s&wd=${encodeURIComponent(query)}&c=1`, color: '#3F51B5', description: '本土化强，POI丰富' },
+    { name: 'OpenStreetMap', icon: '🗺️', url: `https://www.openstreetmap.org/directions?from=&to=${encodeURIComponent(query)}#map=15`, color: '#7EBC6F', description: '开源地图，社区维护' }
+  ];
+
+  navigationOptions.forEach(option => {
+    const button = document.createElement('button');
+    button.innerHTML = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;"><span style="font-size:20px;">${option.icon}</span><span style="font-weight:600;">${option.name}</span></div><div style="font-size:12px;color:rgba(255,255,255,0.8);text-align:left;">${option.description}</div>`;
+    button.style.cssText = 'padding:15px;border:none;border-radius:8px;background:' + option.color + ';color:white;font-size:14px;cursor:pointer;transition:all 0.2s ease;text-align:left;min-height:70px;display:flex;flex-direction:column;justify-content:center;';
+
+    button.addEventListener('click', () => {
+      document.body.removeChild(modal);
+      window.open(option.url, '_blank');
+    });
+    button.addEventListener('mouseover', () => { button.style.transform = 'translateY(-2px)'; button.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)'; });
+    button.addEventListener('mouseout', () => { button.style.transform = 'translateY(0)'; button.style.boxShadow = 'none'; });
+    buttonContainer.appendChild(button);
+  });
+
+  const cancelButton = document.createElement('button');
+  cancelButton.textContent = '取消';
+  cancelButton.style.cssText = 'padding:15px;border:1px solid #ddd;border-radius:8px;background:white;color:#666;font-size:16px;cursor:pointer;margin-top:20px;width:100%;transition:all 0.2s ease;';
+  cancelButton.addEventListener('click', () => { document.body.removeChild(modal); });
+  cancelButton.addEventListener('mouseover', () => { cancelButton.style.background = '#f5f5f5'; });
+  cancelButton.addEventListener('mouseout', () => { cancelButton.style.background = 'white'; });
+
+  content.appendChild(title);
+  content.appendChild(info);
+  content.appendChild(buttonContainer);
+  content.appendChild(createCopyButtons(attractionName, attractionAddress));
+  content.appendChild(cancelButton);
+  modal.appendChild(content);
+
+  modal.addEventListener('click', (e) => { if (e.target === modal) document.body.removeChild(modal); });
+  const handleKeyDown = (e) => { if (e.key === 'Escape') { document.body.removeChild(modal); document.removeEventListener('keydown', handleKeyDown); } };
+  document.addEventListener('keydown', handleKeyDown);
+
+  document.body.appendChild(modal);
 }
 
 // 地图相关变量
@@ -719,6 +953,23 @@ function initBaiduMap() {
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', () => {
   loadSharedPlan();
+
+  // 事件委托：点击景点跳转导航
+  document.addEventListener('click', (e) => {
+    const navItem = e.target.closest('.attraction-nav-item');
+    if (navItem) {
+      const name = navItem.getAttribute('data-name');
+      const address = navItem.getAttribute('data-address');
+      if (name) navigateToAttraction(name, address);
+    }
+  });
+
+  // 注入可点击景点的样式
+  const style = document.createElement('style');
+  style.textContent = `.attraction-nav-item { cursor: pointer; transition: background 0.2s; }
+  .attraction-nav-item:hover { background: #eef2ff !important; }
+  .attraction-nav-item:active { background: #dbeafe !important; }`;
+  document.head.appendChild(style);
 });
 
 // 全局暴露函数供HTML调用

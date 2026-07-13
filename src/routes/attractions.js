@@ -309,7 +309,7 @@ router.post('/day/:dayId', async (req, res) => {
 // 更新景点
 router.put('/:id', async (req, res) => {
   try {
-    const { name, address, description, estimatedDuration, notes, latitude, longitude } = req.body;
+    const { name, address, description, estimatedDuration, notes, latitude, longitude, visitOrder } = req.body;
     
     // 首先检查是否是计划所有者
     let attraction = await Attraction.findOne({
@@ -345,26 +345,33 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ message: '未找到景点' });
     }
     
-    let newLatitude = latitude || null;
-    let newLongitude = longitude || null;
+    // 只更新实际传入的字段，避免覆盖未提供的字段为NULL
+    const updateData = {};
+    if (name !== undefined) updateData.name = name;
+    if (address !== undefined) updateData.address = address;
+    if (description !== undefined) updateData.description = description;
+    if (estimatedDuration !== undefined) updateData.estimatedDuration = estimatedDuration;
+    if (notes !== undefined) updateData.notes = notes;
+    if (visitOrder !== undefined) updateData.visitOrder = visitOrder;
 
-    if (!newLatitude || !newLongitude) {
-      const coords = await autoGeocode(address || name);
+    // 坐标：有显式传入则使用，否则仅在没有坐标时尝试自动补全
+    if (latitude !== undefined && longitude !== undefined) {
+      updateData.latitude = latitude;
+      updateData.longitude = longitude;
+    } else if (latitude !== undefined) {
+      updateData.latitude = latitude;
+    } else if (longitude !== undefined) {
+      updateData.longitude = longitude;
+    } else if (address !== undefined && address && !attraction.latitude && !attraction.longitude) {
+      // 仅在传入了地址且原本无坐标时才自动补全
+      const coords = await autoGeocode(address);
       if (coords) {
-        newLatitude = coords.latitude;
-        newLongitude = coords.longitude;
+        updateData.latitude = coords.latitude;
+        updateData.longitude = coords.longitude;
       }
     }
-    
-    await attraction.update({
-      name,
-      address,
-      latitude: newLatitude,
-      longitude: newLongitude,
-      description,
-      estimatedDuration,
-      notes
-    });
+
+    await attraction.update(updateData);
     
     res.json(attraction);
   } catch (error) {
